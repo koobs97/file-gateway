@@ -36,5 +36,12 @@ out/
 ### VS Code ###
 .vscode/
 
-# env
+# env (.env.example 은 git 포함)
 .env
+
+# uploads
+uploads/
+
+# AI
+.claude/
+.cursor/

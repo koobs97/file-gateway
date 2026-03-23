@@ -1,0 +1,15 @@
+# 운영 환경 - 운영 PostgreSQL
+# DB 정보는 반드시 서버 환경변수로 주입 (기본값 없음 - 없으면 기동 실패)
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    root: WARN
+    com.file.gateway: INFO
