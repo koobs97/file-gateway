@@ -1,0 +1,14 @@
+# 로컬 개발 환경 - Docker로 띄운 PostgreSQL
+# DB 정보는 루트 .env 파일에서 spring-dotenv가 읽어옴
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.file.gateway: DEBUG

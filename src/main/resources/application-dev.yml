@@ -1,0 +1,12 @@
+# 개발 서버 환경 - 개발서버 PostgreSQL
+# DB 정보는 서버 환경변수로 주입
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+logging:
+  level:
+    com.file.gateway: INFO
