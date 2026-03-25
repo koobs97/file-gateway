@@ -1,0 +1,96 @@
+{
+    "folders": [
+        {
+            "name": "file-gateway (root)",
+            "path": "."
+        },
+        {
+            "name": "backend",
+            "path": "backend"
+        }
+    ],
+    "settings": {
+        "java.configuration.runtimes": [
+            {
+                "name": "JavaSE-17",
+                "path": "C:\\Study\\springboot\\jdk-17.0.0.1",
+                "default": true
+            }
+        ],
+        "java.import.gradle.enabled": true,
+        "java.import.gradle.wrapper.enabled": true,
+        "java.import.gradle.java.home": "C:\\Study\\springboot\\jdk-17.0.0.1",
+        "java.jdt.ls.java.home": "C:\\Study\\springboot\\jdk-17.0.0.1",
+        "java.configuration.updateBuildConfiguration": "automatic",
+        "java.compile.nullAnalysis.mode": "disabled",
+        "editor.semanticHighlighting.enabled": true,
+        "window.commandCenter": true
+    },
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "type": "java",
+                "name": "Spring Boot (local)",
+                "request": "launch",
+                "mainClass": "com.file.gateway.FileGatewayApplication",
+                "vmArgs": "-Dspring.profiles.active=local",
+                "cwd": "${workspaceFolder:backend}"
+            },
+            {
+                "type": "java",
+                "name": "Spring Boot (local) - Debug",
+                "request": "launch",
+                "mainClass": "com.file.gateway.FileGatewayApplication",
+                "vmArgs": "-Dspring.profiles.active=local -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005",
+                "cwd": "${workspaceFolder:backend}"
+            }
+        ]
+    },
+    "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "bootRun (local)",
+                "type": "shell",
+                "command": "JAVA_HOME='/c/Study/springboot/jdk-17.0.0.1' PATH=\"$JAVA_HOME/bin:$PATH\" ./gradlew bootRun --args='--spring.profiles.active=local'",
+                "options": {
+                    "cwd": "${workspaceFolder:backend}",
+                    "shell": {
+                        "executable": "C:\\Program Files\\Git\\bin\\bash.exe",
+                        "args": ["-c"]
+                    }
+                },
+                "group": {
+                    "kind": "build",
+                    "isDefault": true
+                },
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "dedicated",
+                    "clear": true
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "test (all)",
+                "type": "shell",
+                "command": "JAVA_HOME='/c/Study/springboot/jdk-17.0.0.1' PATH=\"$JAVA_HOME/bin:$PATH\" ./gradlew test",
+                "options": {
+                    "cwd": "${workspaceFolder:backend}",
+                    "shell": {
+                        "executable": "C:\\Program Files\\Git\\bin\\bash.exe",
+                        "args": ["-c"]
+                    }
+                },
+                "group": "test",
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "dedicated",
+                    "clear": true
+                },
+                "problemMatcher": []
+            }
+        ]
+    }
+}
