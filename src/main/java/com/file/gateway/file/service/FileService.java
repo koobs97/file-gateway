@@ -14,9 +14,11 @@ import com.file.gateway.process.event.entity.EventType;
 import com.file.gateway.process.event.entity.ProcessStatus;
 import com.file.gateway.process.event.entity.ProcessStep;
 import com.file.gateway.process.event.repository.FileEventRepository;
+import com.file.gateway.process.worker.FileUploadedEvent;
 import com.file.gateway.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -40,6 +42,7 @@ public class FileService {
     private final StorageService storageService;
     private final FileValidator fileValidator;
     private final FileEventService fileEventService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public FileUploadResponse upload(MultipartFile file) throws IOException {
@@ -58,14 +61,17 @@ public class FileService {
                 .mimeType(file.getContentType())
                 .storagePath(storagePath)
                 .storageType(StorageType.LOCAL)
-                .status(FileStatus.UPLOADED)
+                .status(FileStatus.PROCESSING)
                 .build();
         fileMetadataRepository.save(metadata);
 
         fileEventService.publishEvent(metadata, EventType.QUEUED, null);
         fileEventService.saveProcessLog(metadata, ProcessStep.UPLOAD, ProcessStatus.SUCCESS, "업로드 완료");
 
-        log.info("파일 업로드 완료: id={}, name={}", metadata.getId(), metadata.getOriginalName());
+        // 트랜잭션 커밋 후 CDR 처리 트리거 (SanitizeEventListener가 수신)
+        eventPublisher.publishEvent(new FileUploadedEvent(metadata.getId(), file.getSize()));
+
+        log.info("파일 업로드 완료: id={}, name={}, status=PROCESSING", metadata.getId(), metadata.getOriginalName());
         return FileUploadResponse.from(metadata);
     }
 
