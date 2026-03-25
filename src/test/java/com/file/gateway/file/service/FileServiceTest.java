@@ -10,6 +10,7 @@ import com.file.gateway.file.entity.StorageType;
 import com.file.gateway.file.repository.FileMetadataRepository;
 import com.file.gateway.process.event.FileEventService;
 import com.file.gateway.process.event.repository.FileEventRepository;
+import com.file.gateway.process.worker.FileUploadedEvent;
 import com.file.gateway.storage.StorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -49,14 +51,17 @@ class FileServiceTest {
     @Mock
     private FileEventService fileEventService;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private FileService fileService;
 
     // ─── upload ────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("유효한 파일 업로드 시 UPLOADED 상태로 저장하고 응답을 반환한다")
-    void upload_ValidFile_ReturnsUploadedResponse() throws IOException {
+    @DisplayName("유효한 파일 업로드 시 PROCESSING 상태로 저장하고 이벤트를 발행한다")
+    void upload_ValidFile_ReturnsProcessingResponse() throws IOException {
         // given
         MockMultipartFile mockFile = new MockMultipartFile(
                 "file", "report.docx",
@@ -78,9 +83,10 @@ class FileServiceTest {
         // then
         assertThat(result.fileId()).isEqualTo(1L);
         assertThat(result.originalName()).isEqualTo("report.docx");
-        assertThat(result.status()).isEqualTo("UPLOADED");
+        assertThat(result.status()).isEqualTo("PROCESSING");
         verify(fileEventService).publishEvent(any(), any(), any());
         verify(fileEventService).saveProcessLog(any(), any(), any(), anyString());
+        verify(eventPublisher).publishEvent(any(FileUploadedEvent.class));
     }
 
     // ─── getFile ───────────────────────────────────────────────────────────
