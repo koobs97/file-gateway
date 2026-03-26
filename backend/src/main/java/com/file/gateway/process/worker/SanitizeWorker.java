@@ -68,6 +68,7 @@ public class SanitizeWorker {
 
             // 3단계: 완료 처리
             file.updateStatus(FileStatus.DONE);
+            fileMetadataRepository.save(file);  // self-invocation으로 @Transactional 미작동 보완
             fileEventService.publishEvent(file, EventType.DONE, null);
             log.info("[CDR] 처리 완료: fileId={}", fileId);
 
@@ -118,6 +119,7 @@ public class SanitizeWorker {
 
     private void handleFailure(FileMetadata file, String message) {
         file.updateStatus(FileStatus.FAIL);
+        fileMetadataRepository.save(file);  // self-invocation으로 @Transactional 미작동 보완
         fileEventService.saveProcessLog(file, ProcessStep.SANITIZE, ProcessStatus.FAIL, message);
         fileEventService.publishEvent(file, EventType.FAIL, null);
     }
