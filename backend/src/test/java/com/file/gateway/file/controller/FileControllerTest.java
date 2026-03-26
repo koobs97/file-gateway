@@ -1,5 +1,7 @@
 package com.file.gateway.file.controller;
 
+import com.file.gateway.auth.CustomUserDetailsService;
+import com.file.gateway.auth.JwtTokenProvider;
 import com.file.gateway.common.exception.BusinessException;
 import com.file.gateway.common.response.ErrorCode;
 import com.file.gateway.file.dto.FileDetailResponse;
@@ -15,6 +17,7 @@ import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -23,10 +26,12 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(FileController.class)
+@WithMockUser
 class FileControllerTest {
 
     @Autowired
@@ -38,6 +43,14 @@ class FileControllerTest {
     @MockitoBean
     @SuppressWarnings("unused")
     private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+
+    @MockitoBean
+    @SuppressWarnings("unused")
+    private CustomUserDetailsService customUserDetailsService;
+
+    @MockitoBean
+    @SuppressWarnings("unused")
+    private JwtTokenProvider jwtTokenProvider;
 
     // ─── POST /api/v1/files ───────────────────────────────────────────────
 
@@ -54,7 +67,7 @@ class FileControllerTest {
                 new FileUploadResponse(1L, "report.docx", 5L, "UPLOADED"));
 
         // when & then
-        mockMvc.perform(multipart("/api/v1/files").file(mockFile))
+        mockMvc.perform(multipart("/api/v1/files").file(mockFile).with(csrf()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.fileId").value(1))
@@ -74,7 +87,7 @@ class FileControllerTest {
                 .thenThrow(new BusinessException(ErrorCode.INVALID_FILE_TYPE));
 
         // when & then
-        mockMvc.perform(multipart("/api/v1/files").file(mockFile))
+        mockMvc.perform(multipart("/api/v1/files").file(mockFile).with(csrf()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("INVALID_FILE_TYPE"));
@@ -138,7 +151,7 @@ class FileControllerTest {
         doNothing().when(fileService).deleteFile(1L);
 
         // when & then
-        mockMvc.perform(delete("/api/v1/files/1"))
+        mockMvc.perform(delete("/api/v1/files/1").with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
     }
