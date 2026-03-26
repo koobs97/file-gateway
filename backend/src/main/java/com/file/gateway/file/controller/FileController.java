@@ -18,6 +18,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -34,6 +35,7 @@ public class FileController {
     private final FileService fileService;
 
     @Operation(summary = "파일 업로드", description = "MS Office 파일을 업로드합니다. (docx/xlsx/pptx)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'END_USER', 'API_CLIENT')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<FileUploadResponse>> upload(
             @RequestPart("file") MultipartFile file) throws IOException {
@@ -55,6 +57,7 @@ public class FileController {
     }
 
     @Operation(summary = "파일 삭제 (soft delete)")
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteFile(@PathVariable("id") Long id) {
         fileService.deleteFile(id);
@@ -78,6 +81,7 @@ public class FileController {
     }
 
     @Operation(summary = "파일 이벤트 이력 조회")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AUDITOR')")
     @GetMapping("/{id}/events")
     public ResponseEntity<ApiResponse<List<FileEventResponse>>> getEvents(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.ok(fileService.getEvents(id)));

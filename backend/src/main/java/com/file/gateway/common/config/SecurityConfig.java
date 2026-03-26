@@ -1,6 +1,7 @@
 package com.file.gateway.common.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.file.gateway.auth.ApiKeyAuthenticationFilter;
 import com.file.gateway.auth.JwtAuthenticationFilter;
 import com.file.gateway.common.response.ApiResponse;
 import com.file.gateway.common.response.ErrorCode;
@@ -33,6 +34,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
     private final ObjectMapper objectMapper;
 
     @Bean
@@ -51,6 +53,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(apiKeyAuthenticationFilter, JwtAuthenticationFilter.class)
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(401);

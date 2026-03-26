@@ -40,4 +40,8 @@ public class ApiClient {
         this.apiKey = apiKey;
         this.status = status != null ? status : "ACTIVE";
     }
+
+    public void deactivate() {
+        this.status = "INACTIVE";
+    }
 }

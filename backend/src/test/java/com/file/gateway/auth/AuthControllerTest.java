@@ -3,6 +3,7 @@ package com.file.gateway.auth;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.file.gateway.auth.dto.LoginRequest;
 import com.file.gateway.auth.dto.TokenResponse;
+import com.file.gateway.client.repository.ApiClientRepository;
 import com.file.gateway.common.exception.BusinessException;
 import com.file.gateway.common.response.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
@@ -57,6 +58,10 @@ class AuthControllerTest {
     @MockitoBean
     @SuppressWarnings("unused")
     private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+
+    @MockitoBean
+    @SuppressWarnings("unused")
+    private ApiClientRepository apiClientRepository;
 
     // ─── POST /api/v1/auth/login ──────────────────────────────────────────
 

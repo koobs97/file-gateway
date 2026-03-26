@@ -61,6 +61,10 @@ public class User {
         this.active = false;
     }
 
+    public void activate() {
+        this.active = true;
+    }
+
     public void updateRole(String role) {
         this.role = role;
     }
