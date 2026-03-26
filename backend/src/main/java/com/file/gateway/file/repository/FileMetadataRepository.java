@@ -14,5 +14,9 @@ public interface FileMetadataRepository extends JpaRepository<FileMetadata, Long
 
     Optional<FileMetadata> findByIdAndDeletedAtIsNull(Long id);
 
-    long countByStatus(FileStatus status);
+    long countByStatusAndDeletedAtIsNull(FileStatus status);
+
+    long countByDeletedAtIsNull();
+
+    long countByDeletedAtIsNotNull();
 }

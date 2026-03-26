@@ -30,7 +30,7 @@ public class FileEvent {
     @Column(name = "event_type", nullable = false)
     private EventType eventType;
 
-    @Column(name = "payload", columnDefinition = "jsonb")
+    @Column(name = "payload", columnDefinition = "text")
     private String payload;
 
     @CreatedDate

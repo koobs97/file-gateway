@@ -50,20 +50,20 @@ public class FileController {
 
     @Operation(summary = "파일 단건 조회")
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<FileDetailResponse>> getFile(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<FileDetailResponse>> getFile(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.ok(fileService.getFile(id)));
     }
 
     @Operation(summary = "파일 삭제 (soft delete)")
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteFile(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> deleteFile(@PathVariable("id") Long id) {
         fileService.deleteFile(id);
         return ResponseEntity.ok(ApiResponse.ok());
     }
 
     @Operation(summary = "무해화 파일 다운로드", description = "처리 완료(DONE) 상태인 파일만 다운로드 가능합니다.")
     @GetMapping("/{id}/download")
-    public ResponseEntity<Resource> download(@PathVariable Long id) throws IOException {
+    public ResponseEntity<Resource> download(@PathVariable("id") Long id) throws IOException {
         FileDetailResponse fileInfo = fileService.getFile(id);
         Resource resource = fileService.downloadSanitizedFile(id);
 
@@ -79,7 +79,7 @@ public class FileController {
 
     @Operation(summary = "파일 이벤트 이력 조회")
     @GetMapping("/{id}/events")
-    public ResponseEntity<ApiResponse<List<FileEventResponse>>> getEvents(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<List<FileEventResponse>>> getEvents(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.ok(fileService.getEvents(id)));
     }
 }

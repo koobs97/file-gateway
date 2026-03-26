@@ -4,6 +4,7 @@ import com.file.gateway.common.exception.BusinessException;
 import com.file.gateway.common.response.ErrorCode;
 import com.file.gateway.file.dto.FileDetailResponse;
 import com.file.gateway.file.dto.FileEventResponse;
+import com.file.gateway.file.dto.FileStatisticsResponse;
 import com.file.gateway.file.dto.FileUploadResponse;
 import com.file.gateway.file.entity.FileMetadata;
 import com.file.gateway.file.entity.FileStatus;
@@ -110,6 +111,15 @@ public class FileService {
                 .stream()
                 .map(FileEventResponse::from)
                 .toList();
+    }
+
+    public FileStatisticsResponse getStatistics() {
+        long done       = fileMetadataRepository.countByStatusAndDeletedAtIsNull(FileStatus.DONE);
+        long fail       = fileMetadataRepository.countByStatusAndDeletedAtIsNull(FileStatus.FAIL);
+        long processing = fileMetadataRepository.countByStatusAndDeletedAtIsNull(FileStatus.PROCESSING);
+        long total      = fileMetadataRepository.countByDeletedAtIsNull();
+        long deleted    = fileMetadataRepository.countByDeletedAtIsNotNull();
+        return FileStatisticsResponse.of(total, done, fail, processing, deleted);
     }
 
     private FileMetadata findActiveFile(Long id) {
