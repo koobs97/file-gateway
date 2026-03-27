@@ -7,10 +7,10 @@ export const useFileStore = defineStore('file', () => {
   const page = ref<FilePage | null>(null)
   const loading = ref(false)
 
-  async function fetchList(pageNum = 0) {
+  async function fetchList(pageNum = 0, keyword?: string, status?: string) {
     loading.value = true
     try {
-      const res = await fileApi.getList(pageNum)
+      const res = await fileApi.getList(pageNum, 20, keyword, status)
       page.value = res.data.data
     } finally {
       loading.value = false

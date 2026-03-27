@@ -90,7 +90,13 @@ client.interceptors.response.use(
 
 function redirectToLogin() {
   if (window.location.pathname !== '/login') {
-    window.location.href = '/login'
+    ElMessage({
+      message: '세션이 만료되었습니다. 로그인 페이지로 이동합니다.',
+      type: 'warning',
+      duration: 2500,
+      showClose: true,
+    })
+    setTimeout(() => { window.location.href = '/login' }, 1800)
   }
 }
 

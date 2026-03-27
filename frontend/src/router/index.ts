@@ -4,6 +4,7 @@ import FileUploadView from '../views/FileUploadView.vue'
 import FileListView from '../views/FileListView.vue'
 import AdminView from '../views/AdminView.vue'
 import LoginView from '../views/LoginView.vue'
+import ChangePasswordView from '../views/ChangePasswordView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -12,6 +13,11 @@ const router = createRouter({
       path: '/login',
       component: LoginView,
       meta: { public: true, title: '로그인' },
+    },
+    {
+      path: '/change-password',
+      component: ChangePasswordView,
+      meta: { title: '비밀번호 변경' },
     },
     {
       path: '/',
@@ -55,6 +61,11 @@ router.beforeEach(async (to) => {
       authStore.clearTokens()
       return { path: '/login', query: { redirect: to.fullPath } }
     }
+  }
+
+  // 최초 로그인 비밀번호 변경 강제 (passwordChanged === false 명시 비교: undefined/null 제외)
+  if (authStore.user && authStore.user.passwordChanged === false && to.path !== '/change-password') {
+    return { path: '/change-password' }
   }
 
   // 역할 제한 확인

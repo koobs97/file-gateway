@@ -20,4 +20,7 @@ export const authApi = {
 
   me: () =>
     client.get<ApiResponse<UserInfo>>('/auth/me'),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    client.patch('/auth/password', { currentPassword, newPassword }),
 }

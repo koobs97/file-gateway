@@ -13,8 +13,10 @@ export const fileApi = {
     })
   },
 
-  getList(page = 0, size = 10) {
-    return client.get<ApiResponse<FilePage>>('/files', { params: { page, size } })
+  getList(page = 0, size = 20, keyword?: string, status?: string) {
+    return client.get<ApiResponse<FilePage>>('/files', {
+      params: { page, size, keyword: keyword || undefined, status: status || undefined },
+    })
   },
 
   getDetail(id: number) {
@@ -27,6 +29,10 @@ export const fileApi = {
 
   delete(id: number) {
     return client.delete<ApiResponse<void>>(`/files/${id}`)
+  },
+
+  downloadFile(id: number) {
+    return client.get<Blob>(`/files/${id}/download`, { responseType: 'blob' })
   },
 
   getStatistics() {

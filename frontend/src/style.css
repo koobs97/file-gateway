@@ -1,2 +1,298 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Segoe UI', sans-serif; }
+/* ─── Design Tokens (Light) ──────────────────────────── */
+:root {
+  /* Primary */
+  --primary: #001233;
+  --primary-hover: #00205f;
+  --primary-light: #e8edf8;
+  --primary-mid: #3a5fa0;
+
+  /* Background */
+  --bg-base: #fffaf0;
+  --bg-surface: #ffffff;
+  --bg-muted: #f4f7f9;
+  --bg-border: #e4e7ed;
+
+  /* Text */
+  --text-primary: #1a1a2e;
+  --text-secondary: #606266;
+  --text-muted: #909399;
+  --text-inverse: #ffffff;
+
+  /* Status */
+  --color-success: #18a058;
+  --color-warning: #f0a020;
+  --color-danger: #d03050;
+  --color-info: #3a5fa0;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 4px rgba(0,18,51,.08);
+  --shadow-md: 0 4px 16px rgba(0,18,51,.12);
+  --shadow-lg: 0 8px 32px rgba(0,18,51,.16);
+
+  /* Typography — base +1px (13→14) */
+  --font-sans: 'Noto Sans KR', 'Segoe UI', sans-serif;
+  --font-display: 'Poppins', 'Outfit', sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-md: 15px;
+  --font-size-lg: 17px;
+  --font-size-xl: 21px;
+  --font-size-2xl: 25px;
+
+  /* Header */
+  --header-height: 52px;
+  --main-header-background: #f4f7f9;
+}
+
+/* ─── Dark Mode Tokens ───────────────────────────────── */
+html.dark {
+  --primary: #4d9de0;
+  --primary-hover: #69aee8;
+  --primary-light: #1a2a3d;
+  --primary-mid: #6ab0f5;
+
+  --bg-base: #0d1117;
+  --bg-surface: #161b22;
+  --bg-muted: #1c2128;
+  --bg-border: #30363d;
+
+  --text-primary: #e6edf3;
+  --text-secondary: #8d96a0;
+  --text-muted: #6e7681;
+  --text-inverse: #0d1117;
+
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-danger: #f85149;
+  --color-info: #58a6ff;
+
+  --shadow-sm: 0 1px 4px rgba(0,0,0,.3);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.4);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,.5);
+
+  --main-header-background: #161b22;
+
+  /* El Plus dark override */
+  --el-bg-color: #0d1117;
+  --el-bg-color-page: #0d1117;
+  --el-bg-color-overlay: #1c2128;
+  --el-text-color-primary: #e6edf3;
+  --el-text-color-regular: #8d96a0;
+  --el-text-color-secondary: #6e7681;
+  --el-border-color: #30363d;
+  --el-border-color-light: #30363d;
+  --el-border-color-lighter: #21262d;
+  --el-fill-color-blank: #161b22;
+  --el-fill-color: #1c2128;
+  --el-fill-color-light: #21262d;
+}
+
+/* ─── Reset ──────────────────────────────────────────── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+  transition: background-color 0.25s, color 0.25s;
+}
+
+/* ─── Element Plus Global Overrides ────────────────── */
+
+/* Button */
+.el-button {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-sm) !important;
+  font-weight: 500;
+}
+.el-button--primary {
+  background-color: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+.el-button--primary:hover,
+.el-button--primary:focus {
+  background-color: var(--primary-hover) !important;
+  border-color: var(--primary-hover) !important;
+}
+.el-button--large {
+  height: 46px !important;
+  font-size: var(--font-size-md) !important;
+}
+
+/* Input */
+.el-input__wrapper {
+  border-radius: var(--radius-sm) !important;
+  background: var(--bg-surface) !important;
+  box-shadow: 0 0 0 1px var(--bg-border) inset !important;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.el-input__wrapper.is-focus,
+.el-input__wrapper:focus-within {
+  box-shadow: 0 0 0 1.5px var(--primary) inset !important;
+}
+.el-input__inner {
+  font-family: var(--font-sans) !important;
+  font-size: var(--font-size-md) !important;
+  background: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+/* Card */
+.el-card {
+  border-radius: var(--radius-md) !important;
+  border: 1px solid var(--bg-border) !important;
+  box-shadow: var(--shadow-sm) !important;
+  background: var(--bg-surface) !important;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.el-card:hover {
+  box-shadow: var(--shadow-md) !important;
+}
+.el-card__header {
+  padding: 12px 18px !important;
+  border-bottom: 1px solid var(--bg-border) !important;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.el-card__body {
+  padding: 18px !important;
+}
+
+/* Table */
+.el-table th.el-table__cell {
+  background-color: var(--primary) !important;
+  color: var(--text-inverse) !important;
+  font-size: var(--font-size-sm) !important;
+  font-weight: 500;
+  padding: 8px 0 !important;
+}
+.el-table td.el-table__cell {
+  padding: 8px 0 !important;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: var(--bg-muted);
+}
+.el-table__header-wrapper {
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  overflow: hidden;
+}
+/* 다크모드 테이블 행 */
+html.dark .el-table tr {
+  background-color: var(--bg-surface);
+}
+html.dark .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background-color: var(--bg-muted);
+}
+
+/* Tag */
+.el-tag {
+  font-size: var(--font-size-xs) !important;
+  border-radius: 4px !important;
+}
+
+/* Form */
+.el-form-item__label {
+  font-size: var(--font-size-sm) !important;
+  font-weight: 500;
+  color: var(--text-secondary) !important;
+}
+
+/* Menu */
+.el-menu--horizontal > .el-menu-item {
+  font-size: var(--font-size-sm) !important;
+  height: var(--header-height) !important;
+  line-height: var(--header-height) !important;
+}
+.el-menu--horizontal > .el-menu-item.is-active {
+  color: var(--primary) !important;
+  border-bottom-color: var(--primary) !important;
+}
+
+/* Pagination */
+.el-pagination .el-pager li.is-active {
+  background-color: var(--primary) !important;
+}
+
+/* Message */
+.el-message {
+  border-radius: var(--radius-sm) !important;
+  font-size: var(--font-size-sm) !important;
+  min-width: 260px;
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* Descriptions */
+.el-descriptions__label {
+  font-size: var(--font-size-sm) !important;
+  font-weight: 500;
+  background-color: var(--bg-muted) !important;
+  color: var(--text-secondary) !important;
+}
+.el-descriptions__content {
+  font-size: var(--font-size-sm) !important;
+}
+
+/* Select / Dropdown 다크모드 */
+html.dark .el-select-dropdown {
+  background-color: var(--bg-surface);
+  border-color: var(--bg-border);
+}
+html.dark .el-select-dropdown__item {
+  color: var(--text-primary);
+}
+html.dark .el-select-dropdown__item:hover,
+html.dark .el-select-dropdown__item.is-hovering {
+  background-color: var(--bg-muted);
+}
+
+/* Dialog 다크모드 */
+html.dark .el-dialog {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+}
+html.dark .el-dialog__title {
+  color: var(--text-primary);
+}
+
+/* Tabs 다크모드 */
+html.dark .el-tabs--border-card {
+  background-color: var(--bg-surface);
+  border-color: var(--bg-border);
+}
+html.dark .el-tabs--border-card > .el-tabs__header {
+  background-color: var(--bg-muted);
+  border-bottom-color: var(--bg-border);
+}
+html.dark .el-tabs--border-card > .el-tabs__header .el-tabs__item.is-active {
+  background-color: var(--bg-surface);
+  border-right-color: var(--bg-border);
+  border-left-color: var(--bg-border);
+}
