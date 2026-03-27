@@ -144,13 +144,14 @@ public class FileController {
     }
 
     /**
-     * 특정 파일에 기록된 이벤트 이력을 시간 순으로 조회한다. ADMIN·AUDITOR 역할만 호출 가능하다.
+     * 특정 파일에 기록된 이벤트 이력을 시간 순으로 조회한다.
+     * ADMIN·AUDITOR는 전체 파일 이벤트를, API_CLIENT는 본인이 업로드한 파일 이벤트를 조회할 수 있다.
      *
      * @param id 이벤트를 조회할 파일 ID
      * @return 파일 이벤트 이력 목록 응답
      */
     @Operation(summary = "파일 이벤트 이력 조회")
-    @PreAuthorize("hasAnyRole('ADMIN', 'AUDITOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AUDITOR', 'API_CLIENT')")
     @GetMapping("/{id}/events")
     public ResponseEntity<ApiResponse<List<FileEventResponse>>> getEvents(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.ok(fileService.getEvents(id)));

@@ -65,8 +65,15 @@ async function confirmLogout() {
   router.push('/login')
 }
 
-/** 현재 경로가 헤더를 숨겨야 하는 페이지인지 여부 */
-const isLoginPage = computed(() => route.path === '/login' || route.path === '/change-password')
+/** 현재 경로가 헤더를 숨겨야 하는 페이지인지 여부 (로그인·비밀번호 변경·API 데모) */
+const isLoginPage = computed(() =>
+  route.path === '/login' || route.path === '/change-password' || route.path === '/demo'
+)
+
+/** API 연동 데모 페이지를 새 탭으로 열기 */
+function openDemo() {
+  window.open('/demo', '_blank')
+}
 </script>
 
 <template>
@@ -82,6 +89,11 @@ const isLoginPage = computed(() => route.path === '/login' || route.path === '/c
         <el-menu-item index="/files">처리 목록</el-menu-item>
         <el-menu-item v-if="authStore.isAdmin" index="/admin">시스템 관리</el-menu-item>
       </el-menu>
+
+      <!-- API 연동 데모 링크 — 새 탭으로 열림 -->
+      <button v-if="authStore.isAdmin" class="demo-link-btn" @click="openDemo">
+        ⚡ API 연동 데모
+      </button>
 
       <div class="header-right">
         <SessionTimer />
@@ -211,6 +223,31 @@ const isLoginPage = computed(() => route.path === '/login' || route.path === '/c
   font-weight: 700;
   border-bottom-color: var(--el-color-primary) !important;
   border-bottom-width: 2px !important;
+}
+
+/* API 연동 데모 버튼 */
+.demo-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 12px;
+  padding: 5px 13px;
+  height: 30px;
+  border: 1.5px solid rgba(99, 102, 241, 0.4);
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.06);
+  color: #6366f1;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.demo-link-btn:hover {
+  background: rgba(99, 102, 241, 0.14);
+  border-color: #6366f1;
 }
 
 .header-right {
