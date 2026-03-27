@@ -24,7 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -68,7 +68,7 @@ class FileControllerTest {
                 MediaType.MULTIPART_FORM_DATA_VALUE,
                 "dummy".getBytes());
 
-        when(fileService.upload(any())).thenReturn(
+        when(fileService.upload(any(), anyString())).thenReturn(
                 new FileUploadResponse(1L, "report.docx", 5L, "UPLOADED"));
 
         // when & then
@@ -89,7 +89,7 @@ class FileControllerTest {
                 MediaType.MULTIPART_FORM_DATA_VALUE,
                 "dummy".getBytes());
 
-        when(fileService.upload(any()))
+        when(fileService.upload(any(), anyString()))
                 .thenThrow(new BusinessException(ErrorCode.INVALID_FILE_TYPE));
 
         // when & then
@@ -107,7 +107,7 @@ class FileControllerTest {
     void getFiles_Returns200WithPagedResult() throws Exception {
         // given
         FileDetailResponse detail = buildDetail(1L, "test.docx", "UPLOADED");
-        when(fileService.getFiles(any(Pageable.class)))
+        when(fileService.getFiles(any(), any(), any(Pageable.class), anyString(), anyBoolean()))
                 .thenReturn(new PageImpl<>(List.of(detail)));
 
         // when & then
@@ -126,7 +126,7 @@ class FileControllerTest {
     void getFile_ExistingId_Returns200() throws Exception {
         // given
         FileDetailResponse detail = buildDetail(1L, "test.docx", "UPLOADED");
-        when(fileService.getFile(1L)).thenReturn(detail);
+        when(fileService.getFile(eq(1L), anyString(), anyBoolean())).thenReturn(detail);
 
         // when & then
         mockMvc.perform(get("/api/v1/files/1"))
@@ -141,7 +141,7 @@ class FileControllerTest {
     @DisplayName("존재하지 않는 파일 ID 조회 시 404를 반환한다")
     void getFile_NonExistingId_Returns404() throws Exception {
         // given
-        when(fileService.getFile(99L))
+        when(fileService.getFile(eq(99L), anyString(), anyBoolean()))
                 .thenThrow(new BusinessException(ErrorCode.FILE_NOT_FOUND));
 
         // when & then
