@@ -1,3 +1,12 @@
+<!--
+  LoginView
+  - 사용자 로그인 페이지
+  - 아이디/비밀번호 입력 폼과 유효성 검사를 처리한다
+  - Caps Lock 감지 및 비밀번호 가시성 토글 기능을 제공한다
+  - 브라우저 자동완성(autofill) 감지를 통해 부드러운 렌더링을 보장한다
+  - 데모 계정 버튼으로 역할별 빠른 로그인을 지원한다
+  - 로그인 성공 시 redirect 쿼리 파라미터 또는 루트 경로로 이동한다
+-->
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue' // computed 추가
 import { useRouter, useRoute } from 'vue-router'
@@ -11,15 +20,23 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
+/** 로그인 API 호출 중 로딩 상태 */
 const loading = ref(false)
+
+/** 로그인 폼 데이터 (아이디, 비밀번호) */
 const form = reactive({ username: '', password: '' })
+
+/** Element Plus 폼 인스턴스 참조 (유효성 검사 호출용) */
 const formRef = ref()
 
-// Caps Lock 상태 변수
+// ── Caps Lock / 비밀번호 가시성 ────────────────
+/** Caps Lock 활성화 여부 */
 const isCapsLockOn = ref(false)
 
-// 비밀번호 가시성 상태 변수
+/** 비밀번호 입력 필드의 텍스트 가시성 여부 */
 const isPasswordVisible = ref(false)
+
+/** 비밀번호 가시성 상태에 따라 input type을 동적으로 반환한다 */
 const passwordType = computed(() => isPasswordVisible.value ? 'text' : 'password')
 
 const rules = {
@@ -27,17 +44,30 @@ const rules = {
   password: [{ required: true, message: '비밀번호를 입력하세요.', trigger: 'blur' }],
 }
 
-// 비밀번호 토글 함수
+/**
+ * 비밀번호 입력 필드의 텍스트 가시성을 토글한다.
+ */
 const togglePasswordVisibility = () => {
   isPasswordVisible.value = !isPasswordVisible.value
 }
 
+/**
+ * 키보드/마우스 이벤트에서 Caps Lock 상태를 감지하여 상태를 갱신한다.
+ *
+ * @param event KeyboardEvent 또는 MouseEvent
+ */
 const checkCapsLock = (event: any) => {
   if (event instanceof KeyboardEvent) {
     isCapsLockOn.value = event.getModifierState("CapsLock")
   }
 }
 
+/**
+ * 브라우저 자동완성(autofill) CSS 애니메이션 이벤트를 감지하여
+ * Vue 반응형 바인딩이 자동완성 값을 인식하도록 input 이벤트를 강제 발생시킨다.
+ *
+ * @param e AnimationEvent (loginAutofill 애니메이션 이름으로 판별)
+ */
 function onAutofillDetected(e: Event) {
   const anim = e as AnimationEvent
   if (anim.animationName === 'loginAutofill') {
@@ -48,6 +78,7 @@ function onAutofillDetected(e: Event) {
   }
 }
 
+/** 패널 페이드인 렌더링 준비 완료 여부 (자동완성 대기 후 true 로 전환) */
 const isReady = ref(false)
 onMounted(() => {
 
@@ -67,6 +98,11 @@ onUnmounted(() => {
   document.removeEventListener('animationstart', onAutofillDetected, true)
 })
 
+/**
+ * 폼 유효성 검사를 수행하고 로그인 API를 호출한다.
+ * 성공 시 redirect 경로 또는 루트('/')로 이동하며,
+ * 실패 시 오류 메시지를 ElMessage로 표시한다.
+ */
 async function handleLogin() {
   if (!formRef.value) return
   try {
@@ -84,12 +120,19 @@ async function handleLogin() {
   }
 }
 
+/**
+ * 데모 계정 정보를 폼에 채워 넣고 즉시 로그인을 시도한다.
+ *
+ * @param username 데모 계정 아이디
+ * @param password 데모 계정 비밀번호
+ */
 function loginAsDemo(username: string, password: string) {
   form.username = username
   form.password = password
   handleLogin()
 }
 
+// ── 데모 계정 목록 ─────────────────────────────
 const demoUsers = [
   { label: '관리자', username: 'admin', password: 'password123', type: 'danger' as const, description: '전체 권한' },
   { label: '감사자', username: 'auditor', password: 'password123', type: 'warning' as const, description: '로그 열람' },
@@ -126,7 +169,7 @@ const demoUsers = [
             clearable
           />
         </el-form-item>
-        
+
         <el-form-item prop="password" class="password-item">
           <!-- show-password 속성을 빼고 :type을 동적으로 제어 -->
           <el-input
@@ -144,7 +187,7 @@ const demoUsers = [
               </el-icon>
             </template>
           </el-input>
-          
+
           <div class="caps-lock-floating-area">
             <transition name="el-fade-in">
               <span v-show="isCapsLockOn" class="caps-lock-warning">
@@ -258,7 +301,7 @@ const demoUsers = [
   line-height: 20px !important; /* 글자 높이와 line-height를 맞춰서 정중앙 배치 */
   color: #303133;
   /* 위아래 간격(Margin)을 강제로 주어 테두리 침범 방지 */
-  margin: 4px 0 !important;     
+  margin: 4px 0 !important;
 }
 
 /* 3. 아이콘 크기 조절 (글자가 작아졌으니 아이콘도 비율 맞춤) */
@@ -294,7 +337,7 @@ const demoUsers = [
 
 /* 레이아웃 고정 핵심 스타일 */
 .password-item {
-  margin-bottom: 80px !important; 
+  margin-bottom: 80px !important;
   position: relative;
 }
 

@@ -1,3 +1,12 @@
+<!--
+  FileUploadView
+  - MS Office 파일(docx/xlsx/pptx) 업로드 및 CDR 처리 현황 확인 페이지
+  - 드래그&드롭 또는 클릭으로 파일을 선택하여 업로드 대기열에 추가한다
+  - 업로드 대기열을 순차적으로 처리하며 진행률을 실시간으로 표시한다
+  - WebSocket(STOMP)으로 서버의 CDR 처리 상태를 실시간으로 수신한다
+  - 최근 처리 현황 카드와 관리자 전용 통계 칩을 우측에 표시한다
+  - 오른쪽 패널에는 지원 형식, CDR 무해화 공정, 처리 단계 가이드를 제공한다
+-->
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -11,12 +20,22 @@ import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+/** 허용되는 파일 확장자 목록 */
 const ALLOWED = ['docx', 'xlsx', 'pptx']
 
 // ── 최근 처리 현황 ──────────────────────────────
+/** 최근 5건의 파일 처리 목록 */
 const recentFiles = ref<FileDetailResponse[]>([])
+
+/** 관리자 전용 파일 처리 통계 데이터 */
 const stats = ref<FileStatistics | null>(null)
 
+/**
+ * 최근 처리 파일 목록과 통계를 서버에서 불러온다.
+ * PROCESSING/UPLOADED 상태의 파일은 WebSocket 구독을 추가로 등록한다.
+ * 관리자인 경우에만 통계 API를 추가 호출한다.
+ */
 async function loadRecentData() {
   try {
     const res = await fileApi.getList(0, 5)
@@ -35,9 +54,18 @@ async function loadRecentData() {
 }
 
 // ── WebSocket — 업로드 파일 상태 실시간 반영 ──
+/** STOMP 클라이언트 인스턴스 */
 let stompClient: Client | null = null
+
+/** 이미 구독 중인 파일 ID 집합 (중복 구독 방지) */
 const subscribedIds = new Set<number>()
 
+/**
+ * WebSocket(STOMP) 연결을 보장한다.
+ * 이미 연결된 경우 즉시 resolve 하고, 미연결 시 새 클라이언트를 생성하여 연결한다.
+ *
+ * @returns 연결 완료 시 resolve 되는 Promise
+ */
 function ensureWsConnected(): Promise<void> {
   return new Promise((resolve) => {
     if (stompClient?.connected) { resolve(); return }
@@ -50,6 +78,13 @@ function ensureWsConnected(): Promise<void> {
   })
 }
 
+/**
+ * 특정 파일 ID에 대한 WebSocket 상태 알림을 구독한다.
+ * 알림 수신 시 목록 내 해당 파일의 상태를 즉시 갱신하며,
+ * DONE/FAIL 완료 상태 수신 시 관리자 통계도 갱신한다.
+ *
+ * @param fileId 구독할 파일의 ID
+ */
 async function subscribeFileStatus(fileId: number) {
   if (subscribedIds.has(fileId)) return
   subscribedIds.add(fileId)
@@ -73,6 +108,12 @@ async function subscribeFileStatus(fileId: number) {
 onMounted(loadRecentData)
 onUnmounted(() => { stompClient?.deactivate() })
 
+/**
+ * 업로드 시각을 상대 시간 문자열로 변환한다.
+ *
+ * @param dateStr ISO 8601 날짜 문자열
+ * @returns '방금 전', 'N분 전', 'N시간 전', 'N일 전' 형태의 문자열
+ */
 function timeAgo(dateStr: string): string {
   const m = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000)
   if (m < 1) return '방금 전'
@@ -82,14 +123,28 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(h / 24)}일 전`
 }
 
+/**
+ * 파일 처리 상태 코드를 Element Plus 태그 타입으로 변환한다.
+ *
+ * @param status 처리 상태 코드 ('DONE' | 'PROCESSING' | 'FAIL' | 'UPLOADED')
+ * @returns Element Plus 태그 타입 문자열
+ */
 function statusTagType(status: string) {
   return ({ DONE: 'success', PROCESSING: 'warning', FAIL: 'danger', UPLOADED: 'info' } as Record<string, string>)[status] ?? 'info'
 }
+
+/**
+ * 파일 처리 상태 코드를 한국어 레이블로 변환한다.
+ *
+ * @param status 처리 상태 코드
+ * @returns 한국어 상태 레이블 문자열
+ */
 function statusTagLabel(status: string) {
   return ({ DONE: '완료', PROCESSING: '처리중', FAIL: '실패', UPLOADED: '대기중' } as Record<string, string>)[status] ?? status
 }
 
 // ── 업로드 큐 ──────────────────────────────────
+/** 업로드 대기열 항목의 타입 정의 */
 interface QueueItem {
   uid: string
   file: File
@@ -99,13 +154,30 @@ interface QueueItem {
   errorMsg?: string
 }
 
+/** 업로드 대기열 목록 */
 const queue = ref<QueueItem[]>([])
+
+/** 업로드 대기열 처리 중 여부 */
 const isProcessing = ref(false)
 
+/**
+ * 파일명에서 확장자를 소문자로 추출한다.
+ *
+ * @param name 파일명 문자열
+ * @returns 소문자 확장자 (예: 'docx')
+ */
 function getExt(name: string) {
   return name.split('.').pop()?.toLowerCase() ?? ''
 }
 
+/**
+ * el-upload onChange 이벤트 핸들러.
+ * 허용된 확장자 및 중복 여부를 검사한 후 대기열에 항목을 추가한다.
+ * 처리 중이 아닌 경우 즉시 대기열 처리를 시작한다.
+ *
+ * @param uploadFile el-upload 컴포넌트에서 전달된 업로드 파일 객체
+ * @returns 항상 false를 반환하여 el-upload의 자동 업로드를 차단한다
+ */
 function onFilesSelected(uploadFile: any) {
   const file: File = uploadFile.raw
   if (!ALLOWED.includes(getExt(file.name))) {
@@ -127,6 +199,10 @@ function onFilesSelected(uploadFile: any) {
   return false
 }
 
+/**
+ * 대기열의 'waiting' 상태 항목을 순차적으로 업로드한다.
+ * 각 항목의 업로드 진행률을 실시간으로 갱신하며, 성공/실패 상태를 업데이트한다.
+ */
 async function processQueue() {
   isProcessing.value = true
   for (const item of queue.value) {
@@ -144,22 +220,38 @@ async function processQueue() {
   isProcessing.value = false
 }
 
+/**
+ * 대기열에서 특정 항목을 제거한다.
+ *
+ * @param uid 제거할 항목의 고유 식별자
+ */
 function removeItem(uid: string) {
   queue.value = queue.value.filter((q) => q.uid !== uid)
 }
 
+/**
+ * 대기열에서 완료(done) 상태의 항목을 모두 제거한다.
+ */
 function clearDone() {
   queue.value = queue.value.filter((q) => q.status !== 'done')
 }
 
+/**
+ * 바이트 단위 파일 크기를 읽기 쉬운 문자열로 변환한다.
+ *
+ * @param bytes 파일 크기 (바이트)
+ * @returns 'N B', 'N.N KB', 'N.N MB' 형태의 문자열
+ */
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+/** 대기열에서 완료 상태 항목의 수를 반환한다. */
 const doneCount = () => queue.value.filter((q) => q.status === 'done').length
 
+// ── 업로드 완료 감시 ────────────────────────────
 // 업로드 완료 시: WebSocket 구독 완료 확인 후 목록 갱신
 watch(
   () => queue.value.filter((q) => q.status === 'done'),
@@ -341,13 +433,13 @@ watch(
               <span class="g-subtitle">Supported Formats & Size</span>
             </div>
           </div>
-          
+
           <div class="format-grid">
             <div class="format-item"><span>DOCX</span></div>
             <div class="format-item"><span>XLSX</span></div>
             <div class="format-item"><span>PPTX</span></div>
           </div>
-          
+
           <div class="limit-info">
             <div class="limit-row">
               <el-icon><CircleCheck /></el-icon>
@@ -369,7 +461,7 @@ watch(
               <span class="g-subtitle">Security Analysis</span>
             </div>
           </div>
-          
+
           <div class="security-list">
             <div class="security-item">
               <span class="dot"></span>
@@ -402,7 +494,7 @@ watch(
               <span class="g-subtitle">Process Workflow</span>
             </div>
           </div>
-          
+
           <div class="workflow-steps">
             <div class="step-item">
               <div class="step-num">01</div>
@@ -578,10 +670,10 @@ watch(
   background-color: rgba(208, 48, 80, 0.08) !important;
 }
 
-/* 업로드 중일 때는 버튼이 없으므로, 
+/* 업로드 중일 때는 버튼이 없으므로,
    아이템 내의 상태 태그(.queue-status)가 오른쪽 끝에 오도록 유도 */
 .queue-status {
-  margin-left: auto; 
+  margin-left: auto;
   display: flex;
   align-items: center;
 }

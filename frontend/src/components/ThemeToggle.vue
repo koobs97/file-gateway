@@ -1,15 +1,23 @@
+<!--
+  ThemeToggle
+  - 라이트/다크 모드 전환 버튼 컴포넌트
+  - useTheme 컴포저블의 isDark 상태에 따라 아이콘(Sunny/Moon)을 전환한다
+  - 버튼 클릭 시 toggleTheme()을 호출하여 테마를 즉시 변경한다
+  - 아이콘 전환에는 out-in 트랜지션 애니메이션을 적용한다
+-->
 <script setup lang="ts">
 import { useTheme } from '../composables/useTheme'
 import { Sunny, Moon } from '@element-plus/icons-vue'
 
+/** useTheme 컴포저블에서 현재 다크 모드 여부와 토글 함수를 가져온다 */
 const { isDark, toggleTheme } = useTheme()
 </script>
 
 <template>
-  <button 
-    type="button" 
-    class="theme-toggle" 
-    :title="isDark ? '라이트 모드로 전환' : '다크 모드로 전환'" 
+  <button
+    type="button"
+    class="theme-toggle"
+    :title="isDark ? '라이트 모드로 전환' : '다크 모드로 전환'"
     @click="toggleTheme"
   >
     <div class="icon-wrapper">

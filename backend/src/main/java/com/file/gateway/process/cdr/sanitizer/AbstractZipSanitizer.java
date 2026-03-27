@@ -25,15 +25,36 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 /**
- * OOXML(docx/xlsx/pptx) 파일은 ZIP 구조이므로,
- * ZIP 엔트리 제거 + XML 참조 정리 공통 로직을 제공한다.
+ * AbstractZipSanitizer
+ * - OOXML(docx/xlsx/pptx) 파일은 ZIP 구조이므로, ZIP 엔트리 제거 및 XML 참조 정리 공통 로직을 제공하는 추상 클래스
+ * - 서브클래스(DocxSanitizer, XlsxSanitizer, PptxSanitizer)는 shouldRemove() 만 구현하면 됨
+ * - [Content_Types].xml과 .rels 파일에서 제거된 엔트리의 참조도 함께 삭제하여 파일 무결성 유지
+ * - XXE(XML External Entity) 공격 방지를 위한 파서 설정 포함
+ *
+ * @author 구본상
+ * @since 2026-03-26
  */
 @Slf4j
 public abstract class AbstractZipSanitizer implements OfficeSanitizer {
 
-    /** 제거 대상 엔트리인지 판단. 서브클래스에서 구현. */
+    /**
+     * 해당 ZIP 엔트리를 제거 대상으로 판단할지 여부를 반환한다.
+     * 서브클래스에서 파일 형식에 맞는 제거 기준을 구현한다.
+     *
+     * @param entryName ZIP 엔트리 이름 (예: "word/vbaProject.bin")
+     * @return 제거 대상이면 true, 유지 대상이면 false
+     */
     protected abstract boolean shouldRemove(String entryName);
 
+    /**
+     * 입력 스트림의 OOXML 파일에서 위협 엔트리를 제거하고 무해화된 ZIP을 출력 스트림에 기록한다.
+     * 1단계: 제거 대상 엔트리 목록을 수집한다.
+     * 2단계: 위협 엔트리를 제외하고 ZIP을 재조립하며, [Content_Types].xml과 .rels 참조도 정리한다.
+     *
+     * @param in  무해화할 원본 OOXML 파일의 입력 스트림
+     * @param out 무해화된 파일을 기록할 출력 스트림
+     * @throws IOException ZIP 읽기·쓰기 중 I/O 오류 발생 시
+     */
     @Override
     public void sanitize(InputStream in, OutputStream out) throws IOException {
         byte[] data = in.readAllBytes();
@@ -74,6 +95,13 @@ public abstract class AbstractZipSanitizer implements OfficeSanitizer {
         }
     }
 
+    /**
+     * ZIP 바이트 배열을 순회하여 shouldRemove() 기준에 해당하는 엔트리 이름을 수집한다.
+     *
+     * @param data 원본 OOXML 파일의 바이트 배열
+     * @return 제거 대상 엔트리 이름의 집합 (삽입 순서 유지)
+     * @throws IOException ZIP 읽기 중 I/O 오류 발생 시
+     */
     private Set<String> collectEntriesToRemove(byte[] data) throws IOException {
         Set<String> entries = new LinkedHashSet<>();
         try (ZipInputStream zin = new ZipInputStream(new ByteArrayInputStream(data))) {
@@ -89,7 +117,11 @@ public abstract class AbstractZipSanitizer implements OfficeSanitizer {
 
     /**
      * [Content_Types].xml에서 제거된 엔트리의 Override 요소를 삭제한다.
-     * 예: <Override PartName="/word/vbaProject.bin" ContentType="..."/>
+     * 예: {@code <Override PartName="/word/vbaProject.bin" ContentType="..."/>}
+     *
+     * @param content       [Content_Types].xml 파일의 바이트 배열
+     * @param removedEntries 제거된 ZIP 엔트리 이름 집합
+     * @return 참조가 정리된 [Content_Types].xml 바이트 배열; 파싱 실패 시 원본 반환
      */
     private byte[] cleanContentTypes(byte[] content, Set<String> removedEntries) {
         try {
@@ -116,7 +148,11 @@ public abstract class AbstractZipSanitizer implements OfficeSanitizer {
 
     /**
      * .rels 파일에서 제거된 엔트리를 가리키는 Relationship 요소를 삭제한다.
-     * 예: <Relationship Target="vbaProject.bin" .../>
+     * 예: {@code <Relationship Target="vbaProject.bin" .../>}
+     *
+     * @param content        .rels 파일의 바이트 배열
+     * @param removedEntries 제거된 ZIP 엔트리 이름 집합
+     * @return 참조가 정리된 .rels 바이트 배열; 파싱 실패 시 원본 반환
      */
     private byte[] cleanRelationships(byte[] content, Set<String> removedEntries) {
         try {
@@ -145,6 +181,14 @@ public abstract class AbstractZipSanitizer implements OfficeSanitizer {
         }
     }
 
+    /**
+     * 바이트 배열을 XML Document로 파싱한다.
+     * XXE(XML External Entity) 공격 방지를 위해 외부 엔티티 처리를 비활성화한다.
+     *
+     * @param content 파싱할 XML 바이트 배열
+     * @return 파싱된 DOM Document 객체
+     * @throws Exception XML 파싱 또는 파서 설정 중 오류 발생 시
+     */
     private Document parseXml(byte[] content) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
@@ -155,6 +199,13 @@ public abstract class AbstractZipSanitizer implements OfficeSanitizer {
         return factory.newDocumentBuilder().parse(new ByteArrayInputStream(content));
     }
 
+    /**
+     * DOM Document 객체를 바이트 배열로 직렬화한다.
+     *
+     * @param doc 직렬화할 DOM Document 객체
+     * @return XML 직렬화 결과 바이트 배열
+     * @throws Exception 직렬화 중 오류 발생 시
+     */
     private byte[] serializeXml(Document doc) throws Exception {
         TransformerFactory tf = TransformerFactory.newInstance();
         Transformer transformer = tf.newTransformer();

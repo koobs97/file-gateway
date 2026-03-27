@@ -21,16 +21,39 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Optional;
 
+/**
+ * ApiKeyAuthenticationFilter
+ * - "X-API-Key" 요청 헤더를 통한 API 클라이언트 인증 처리
+ * - 요청당 단 한 번만 실행되도록 OncePerRequestFilter를 상속
+ * - 유효한 API 키 확인 후 ROLE_API_CLIENT 권한으로 SecurityContext에 등록
+ * - API 키가 없거나 이미 인증된 요청은 다음 필터로 pass-through
+ *
+ * @author 구본상
+ * @since 2026-03-26
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
+    /** API 키를 전달하는 HTTP 요청 헤더 이름 */
     private static final String API_KEY_HEADER = "X-API-Key";
 
+    /** API 클라이언트 조회를 위한 Repository */
     private final ApiClientRepository apiClientRepository;
+
+    /** JSON 직렬화를 위한 ObjectMapper */
     private final ObjectMapper objectMapper;
 
+    /**
+     * 요청마다 X-API-Key 헤더를 검사하여 API 클라이언트 인증을 처리
+     *
+     * @param request     HTTP 요청 객체 (null 불허)
+     * @param response    HTTP 응답 객체 (null 불허)
+     * @param filterChain 다음 필터로 요청을 전달하는 체인 (null 불허)
+     * @throws ServletException 필터 처리 중 서블릿 예외 발생 시
+     * @throws IOException      I/O 처리 중 예외 발생 시
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -68,6 +91,13 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    /**
+     * 인증 실패 시 HTTP 401 상태와 JSON 오류 응답을 클라이언트에 전송
+     *
+     * @param response  HTTP 응답 객체 (null 불허)
+     * @param errorCode 응답에 포함할 에러 코드 (null 불허)
+     * @throws IOException 응답 쓰기 중 I/O 예외 발생 시
+     */
     private void sendUnauthorized(HttpServletResponse response, ErrorCode errorCode) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");

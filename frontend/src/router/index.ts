@@ -1,3 +1,11 @@
+/**
+ * Vue Router 라우터 설정 모듈
+ * - 애플리케이션 라우트 정의 (로그인·파일 업로드·파일 목록·관리자·비밀번호 변경)
+ * - 네비게이션 가드를 통한 인증·권한·최초 비밀번호 변경 강제 처리
+ *   - 미인증 사용자: /login 리다이렉트
+ *   - passwordChanged === false: /change-password 강제 이동
+ *   - 역할 제한 위반: /files 리다이렉트
+ */
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import FileUploadView from '../views/FileUploadView.vue'
@@ -24,6 +32,7 @@ const router = createRouter({
       redirect: '/upload',
     },
     {
+      /** 파일 업로드 페이지 (ROLE_ADMIN, ROLE_END_USER 접근 가능) */
       path: '/upload',
       component: FileUploadView,
       meta: { title: '파일 업로드', roles: ['ROLE_ADMIN', 'ROLE_END_USER'] },
@@ -34,6 +43,7 @@ const router = createRouter({
       meta: { title: '처리 목록' },
     },
     {
+      /** 관리자 대시보드 (ROLE_ADMIN 전용) */
       path: '/admin',
       component: AdminView,
       meta: { title: '관리자 대시보드', roles: ['ROLE_ADMIN'] },

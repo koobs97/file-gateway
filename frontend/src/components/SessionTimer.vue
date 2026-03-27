@@ -1,3 +1,12 @@
+<!--
+  SessionTimer
+  - JWT 세션 만료 시간을 표시하는 헤더 컴포넌트
+  - useSessionTimer 컴포저블에서 남은 시간, 경고/위험 상태, 만료 여부를 구독한다
+  - 남은 시간이 5분이 되면 ElNotification으로 경고를 한 번만 표시한다
+  - 세션이 만료되면 토큰을 정리하고 /login 으로 리다이렉트한다
+  - '연장' 버튼 클릭 시 리프레시 토큰으로 세션 연장을 시도한다
+  - 세션이 표시 임계값 이하일 때만 렌더링된다 (isVisible)
+-->
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -8,10 +17,17 @@ import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+/** useSessionTimer 컴포저블에서 제공하는 세션 타이머 상태 */
 const { formatted, isVisible, isWarning, isDanger, isExpired, remainingSeconds } = useSessionTimer()
 
+/** 세션 연장 API 호출 중 로딩 상태 */
 const extending = ref(false)
 
+/**
+ * 리프레시 토큰으로 세션 연장을 시도한다.
+ * 성공 시 성공 메시지를, 실패 시 오류 메시지를 표시한다.
+ */
 async function handleExtend() {
   extending.value = true
   const ok = await authStore.tryRefresh()
@@ -23,8 +39,11 @@ async function handleExtend() {
   }
 }
 
-// 5분 남았을 때 한 번만 경고
+// ── 세션 경고 알림 (5분) ──────────────────────
+/** 5분 경고 알림 중복 방지 플래그 */
 let warnedOnce = false
+
+// 5분 남았을 때 한 번만 경고
 watch(remainingSeconds, (s) => {
   if (s === 300 && !warnedOnce) {
     warnedOnce = true
@@ -37,6 +56,7 @@ watch(remainingSeconds, (s) => {
   }
 })
 
+// ── 세션 만료 처리 ────────────────────────────
 // 만료 시 정리 후 로그인 이동
 watch(isExpired, (expired) => {
   if (!expired) return
