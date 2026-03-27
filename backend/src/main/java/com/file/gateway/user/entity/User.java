@@ -34,6 +34,9 @@ public class User {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    @Column(name = "password_changed", nullable = false)
+    private boolean passwordChanged = true;
+
     @Column(name = "refresh_token", length = 512)
     private String refreshToken;
 
@@ -51,6 +54,7 @@ public class User {
         this.password = password;
         this.role = role != null ? role : "ROLE_END_USER";
         this.active = true;
+        this.passwordChanged = true;  // 빌더로 생성된 계정은 기본 true (시드 계정)
     }
 
     public void updateRefreshToken(String token) {
@@ -67,5 +71,14 @@ public class User {
 
     public void updateRole(String role) {
         this.role = role;
+    }
+
+    public void requirePasswordChange() {
+        this.passwordChanged = false;
+    }
+
+    public void markPasswordChanged(String encodedPassword) {
+        this.password = encodedPassword;
+        this.passwordChanged = true;
     }
 }

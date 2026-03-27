@@ -45,6 +45,9 @@ public class FileMetadata {
     @Column(name = "status", nullable = false)
     private FileStatus status;
 
+    @Column(name = "uploader_name")
+    private String uploaderName;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
@@ -59,7 +62,7 @@ public class FileMetadata {
     @Builder
     public FileMetadata(String originalName, String storedName, Long fileSize,
                         String mimeType, String storagePath, StorageType storageType,
-                        FileStatus status) {
+                        FileStatus status, String uploaderName) {
         this.originalName = originalName;
         this.storedName = storedName;
         this.fileSize = fileSize;
@@ -67,6 +70,7 @@ public class FileMetadata {
         this.storagePath = storagePath;
         this.storageType = storageType != null ? storageType : StorageType.LOCAL;
         this.status = status != null ? status : FileStatus.UPLOADED;
+        this.uploaderName = uploaderName;
     }
 
     public void updateStatus(FileStatus status) {

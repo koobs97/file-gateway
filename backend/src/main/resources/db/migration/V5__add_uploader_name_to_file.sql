@@ -1,0 +1,1 @@
+ALTER TABLE file ADD COLUMN uploader_name VARCHAR(100);

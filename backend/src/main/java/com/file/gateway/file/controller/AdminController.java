@@ -21,6 +21,6 @@ public class AdminController {
     @Operation(summary = "처리 통계 조회")
     @GetMapping("/statistics")
     public ApiResponse<FileStatisticsResponse> getStatistics() {
-        return ApiResponse.ok(fileService.getStatistics());
+        return ApiResponse.ok(fileService.getStatistics(null, true));
     }
 }

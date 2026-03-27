@@ -46,7 +46,7 @@ public class FileService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public FileUploadResponse upload(MultipartFile file) throws IOException {
+    public FileUploadResponse upload(MultipartFile file, String uploaderName) throws IOException {
         fileValidator.validate(file);
 
         String ext = fileValidator.extractExtension(file.getOriginalFilename());
@@ -63,6 +63,7 @@ public class FileService {
                 .storagePath(storagePath)
                 .storageType(StorageType.LOCAL)
                 .status(FileStatus.PROCESSING)
+                .uploaderName(uploaderName)
                 .build();
         fileMetadataRepository.save(metadata);
 
@@ -76,13 +77,33 @@ public class FileService {
         return FileUploadResponse.from(metadata);
     }
 
-    public Page<FileDetailResponse> getFiles(Pageable pageable) {
-        return fileMetadataRepository.findAllByDeletedAtIsNull(pageable)
-                .map(FileDetailResponse::from);
+    public Page<FileDetailResponse> getFiles(String keyword, String statusStr, Pageable pageable,
+                                              String uploaderName, boolean privileged) {
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+        boolean hasStatus = statusStr != null && !statusStr.isBlank();
+        FileStatus status = parseStatus(statusStr, hasStatus);
+
+        if (privileged) {
+            if (!hasKeyword && !hasStatus) {
+                return fileMetadataRepository.findAllByDeletedAtIsNull(pageable).map(FileDetailResponse::from);
+            }
+            return fileMetadataRepository
+                    .searchFiles(status, hasKeyword ? keyword.trim() : null, pageable)
+                    .map(FileDetailResponse::from);
+        } else {
+            if (!hasKeyword && !hasStatus) {
+                return fileMetadataRepository
+                        .findAllByDeletedAtIsNullAndUploaderName(uploaderName, pageable)
+                        .map(FileDetailResponse::from);
+            }
+            return fileMetadataRepository
+                    .searchFilesByUploader(uploaderName, status, hasKeyword ? keyword.trim() : null, pageable)
+                    .map(FileDetailResponse::from);
+        }
     }
 
-    public FileDetailResponse getFile(Long id) {
-        return FileDetailResponse.from(findActiveFile(id));
+    public FileDetailResponse getFile(Long id, String uploaderName, boolean privileged) {
+        return FileDetailResponse.from(findAccessibleFile(id, uploaderName, privileged));
     }
 
     @Transactional
@@ -92,8 +113,8 @@ public class FileService {
         log.info("파일 삭제(soft delete): id={}", id);
     }
 
-    public Resource downloadSanitizedFile(Long id) throws IOException {
-        FileMetadata file = findActiveFile(id);
+    public Resource downloadSanitizedFile(Long id, String uploaderName, boolean privileged) throws IOException {
+        FileMetadata file = findAccessibleFile(id, uploaderName, privileged);
         if (file.getStatus() != FileStatus.DONE) {
             throw new BusinessException(ErrorCode.PROCESS_FAILED,
                     "무해화 처리가 완료되지 않았습니다. 현재 상태: " + file.getStatus().name());
@@ -113,17 +134,42 @@ public class FileService {
                 .toList();
     }
 
-    public FileStatisticsResponse getStatistics() {
-        long done       = fileMetadataRepository.countByStatusAndDeletedAtIsNull(FileStatus.DONE);
-        long fail       = fileMetadataRepository.countByStatusAndDeletedAtIsNull(FileStatus.FAIL);
-        long processing = fileMetadataRepository.countByStatusAndDeletedAtIsNull(FileStatus.PROCESSING);
-        long total      = fileMetadataRepository.countByDeletedAtIsNull();
-        long deleted    = fileMetadataRepository.countByDeletedAtIsNotNull();
-        return FileStatisticsResponse.of(total, done, fail, processing, deleted);
+    public FileStatisticsResponse getStatistics(String uploaderName, boolean privileged) {
+        if (privileged) {
+            long done       = fileMetadataRepository.countByStatusAndDeletedAtIsNull(FileStatus.DONE);
+            long fail       = fileMetadataRepository.countByStatusAndDeletedAtIsNull(FileStatus.FAIL);
+            long processing = fileMetadataRepository.countByStatusAndDeletedAtIsNull(FileStatus.PROCESSING);
+            long total      = fileMetadataRepository.countByDeletedAtIsNull();
+            long deleted    = fileMetadataRepository.countByDeletedAtIsNotNull();
+            return FileStatisticsResponse.of(total, done, fail, processing, deleted);
+        } else {
+            long done       = fileMetadataRepository.countByStatusAndDeletedAtIsNullAndUploaderName(FileStatus.DONE, uploaderName);
+            long fail       = fileMetadataRepository.countByStatusAndDeletedAtIsNullAndUploaderName(FileStatus.FAIL, uploaderName);
+            long processing = fileMetadataRepository.countByStatusAndDeletedAtIsNullAndUploaderName(FileStatus.PROCESSING, uploaderName);
+            long total      = fileMetadataRepository.countByDeletedAtIsNullAndUploaderName(uploaderName);
+            return FileStatisticsResponse.of(total, done, fail, processing, 0);
+        }
     }
 
     private FileMetadata findActiveFile(Long id) {
         return fileMetadataRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND));
+    }
+
+    private FileMetadata findAccessibleFile(Long id, String uploaderName, boolean privileged) {
+        if (privileged) {
+            return findActiveFile(id);
+        }
+        return fileMetadataRepository.findByIdAndDeletedAtIsNullAndUploaderName(id, uploaderName)
+                .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND));
+    }
+
+    private FileStatus parseStatus(String statusStr, boolean hasStatus) {
+        if (!hasStatus) return null;
+        try {
+            return FileStatus.valueOf(statusStr.toUpperCase());
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 }

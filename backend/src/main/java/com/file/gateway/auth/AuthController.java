@@ -1,5 +1,6 @@
 package com.file.gateway.auth;
 
+import com.file.gateway.auth.dto.ChangePasswordRequest;
 import com.file.gateway.auth.dto.LoginRequest;
 import com.file.gateway.auth.dto.TokenResponse;
 import com.file.gateway.auth.dto.UserInfoResponse;
@@ -38,5 +39,13 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserInfoResponse>> me(@AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(ApiResponse.ok(UserInfoResponse.from(principal)));
+    }
+
+    @PatchMapping("/password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(principal.username(), request);
+        return ResponseEntity.ok(ApiResponse.ok());
     }
 }

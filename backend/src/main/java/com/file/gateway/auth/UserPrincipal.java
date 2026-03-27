@@ -14,6 +14,7 @@ public record UserPrincipal(
         String password,
         String role,
         boolean active,
+        boolean passwordChanged,
         List<GrantedAuthority> authorities
 ) implements UserDetails {
 
@@ -24,6 +25,7 @@ public record UserPrincipal(
                 user.getPassword(),
                 user.getRole(),
                 user.isActive(),
+                user.isPasswordChanged(),
                 List.of(new SimpleGrantedAuthority(user.getRole()))
         );
     }
