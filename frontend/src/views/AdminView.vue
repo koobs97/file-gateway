@@ -1,14 +1,31 @@
+<!--
+  AdminView
+  - ROLE_ADMIN 전용 시스템 관리 페이지
+  - 상단에 파일 처리 통계(전체/완료/실패/성공률)를 카드 형태로 표시한다
+  - 탭 구성: 사용자 관리 / API 클라이언트 관리 / 감사 로그
+  - 사용자 관리: 목록 조회, 신규 생성, 역할 변경, 활성/비활성 토글
+  - API 클라이언트 관리: 목록 조회, 생성, API 키 표시/숨김/복사, 비활성화
+  - 감사 로그: 파일 처리 단계별 로그 조회 (페이지네이션 포함)
+-->
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '../api/admin'
 import type { UserSummaryResponse, ApiClientResponse, ProcessLogResponse, AdminPage } from '../types/admin'
 import type { FileStatistics } from '../types/file'
+// ── 통계 아이콘 임포트
+import { InfoFilled } from '@element-plus/icons-vue'
 
 // ── 통계 ─────────────────────────────────────
+/** 파일 처리 통계 데이터 */
 const stats = ref<FileStatistics | null>(null)
+
+/** 통계 로딩 상태 */
 const statsLoading = ref(false)
 
+/**
+ * 파일 처리 통계를 서버에서 조회한다.
+ */
 async function loadStats() {
   statsLoading.value = true
   try {
@@ -20,13 +37,25 @@ async function loadStats() {
 }
 
 // ── 사용자 관리 (탭 B) ────────────────────────
+/** 사용자 목록 페이지 데이터 */
 const users = ref<AdminPage<UserSummaryResponse> | null>(null)
+
+/** 사용자 목록 로딩 상태 */
 const usersLoading = ref(false)
+
+/** 사용자 추가 다이얼로그 표시 여부 */
 const createUserDialogVisible = ref(false)
+
+/** 사용자 생성 API 호출 중 로딩 상태 */
 const createUserLoading = ref(false)
+
+/** 사용자 추가 폼 데이터 */
 const createUserForm = reactive({ username: '', password: '', role: 'ROLE_END_USER' })
+
+/** Element Plus 폼 인스턴스 참조 (유효성 검사 호출용) */
 const createUserFormRef = ref()
 
+/** 사용자 추가 폼 유효성 검사 규칙 */
 const createUserRules = {
   username: [
     { required: true, message: '아이디를 입력하세요.', trigger: 'blur' },
@@ -39,13 +68,18 @@ const createUserRules = {
   role: [{ required: true, message: '역할을 선택하세요.', trigger: 'change' }],
 }
 
+/** 역할 선택 드롭다운 옵션 목록 */
 const ROLE_OPTIONS = [
   { label: '관리자', value: 'ROLE_ADMIN' },
   { label: '감사자', value: 'ROLE_AUDITOR' },
   { label: '일반 사용자', value: 'ROLE_END_USER' },
 ]
 
-
+/**
+ * 지정한 페이지 번호의 사용자 목록을 조회한다.
+ *
+ * @param page 0-based 페이지 번호 (기본값: 0)
+ */
 async function loadUsers(page = 0) {
   usersLoading.value = true
   try {
@@ -56,6 +90,10 @@ async function loadUsers(page = 0) {
   }
 }
 
+/**
+ * 사용자 추가 폼을 초기화한다.
+ * 유효성 검사 오류 메시지를 제거하고 입력값을 기본값으로 되돌린다.
+ */
 const resetUserForm = () => {
   // 1. 유효성 검사 메시지 초기화 및 폼 데이터 리셋
   if (createUserFormRef.value) {
@@ -67,10 +105,17 @@ const resetUserForm = () => {
   createUserForm.role = 'ROLE_END_USER'
 }
 
+/**
+ * API 클라이언트 생성 폼의 이름 입력값을 초기화한다.
+ */
 const resetClientForm = () => {
   newClientName.value = ''
 }
 
+/**
+ * 사용자 추가 폼의 유효성 검사를 수행하고 사용자 생성 API를 호출한다.
+ * 성공 시 다이얼로그를 닫고 목록을 새로고침한다.
+ */
 async function handleCreateUser() {
   if (!createUserFormRef.value) return
   try {
@@ -87,12 +132,23 @@ async function handleCreateUser() {
   }
 }
 
+/**
+ * 선택된 사용자의 역할을 변경하고 성공 메시지를 표시한다.
+ *
+ * @param user 역할을 변경할 사용자 객체
+ * @param newRole 변경할 역할 코드 (예: 'ROLE_ADMIN')
+ */
 async function handleRoleChange(user: UserSummaryResponse, newRole: string) {
   await adminApi.updateRole(user.id, newRole)
   user.role = newRole
   ElMessage.success('역할이 변경되었습니다.')
 }
 
+/**
+ * 사용자 계정의 활성/비활성 상태를 토글하고 성공 메시지를 표시한다.
+ *
+ * @param user 상태를 토글할 사용자 객체
+ */
 async function handleStatusToggle(user: UserSummaryResponse) {
   const newActive = !user.active
   await adminApi.updateStatus(user.id, newActive)
@@ -101,13 +157,29 @@ async function handleStatusToggle(user: UserSummaryResponse) {
 }
 
 // ── API 클라이언트 관리 (탭 C) ─────────────────
+/** API 클라이언트 목록 페이지 데이터 */
 const clients = ref<AdminPage<ApiClientResponse> | null>(null)
+
+/** API 클라이언트 목록 로딩 상태 */
 const clientsLoading = ref(false)
+
+/** API 클라이언트 생성 다이얼로그 표시 여부 */
 const createDialogVisible = ref(false)
+
+/** 신규 API 클라이언트 이름 입력값 */
 const newClientName = ref('')
+
+/** API 클라이언트 생성 API 호출 중 로딩 상태 */
 const createLoading = ref(false)
+
+/** API 키를 평문으로 표시 중인 클라이언트 ID 집합 */
 const revealedKeys = ref<Set<number>>(new Set())
 
+/**
+ * 지정한 페이지 번호의 API 클라이언트 목록을 조회한다.
+ *
+ * @param page 0-based 페이지 번호 (기본값: 0)
+ */
 async function loadClients(page = 0) {
   clientsLoading.value = true
   try {
@@ -118,6 +190,11 @@ async function loadClients(page = 0) {
   }
 }
 
+/**
+ * 신규 API 클라이언트를 생성한다.
+ * 이름이 비어 있으면 경고 메시지를 표시하고 중단한다.
+ * 성공 시 다이얼로그를 닫고 목록을 새로고침한다.
+ */
 async function handleCreateClient() {
   if (!newClientName.value.trim()) {
     ElMessage.warning('클라이언트 이름을 입력하세요.')
@@ -134,6 +211,12 @@ async function handleCreateClient() {
   }
 }
 
+/**
+ * API 클라이언트를 비활성화한다.
+ * ElMessageBox 확인 후 비활성화 API를 호출하고 목록을 새로고침한다.
+ *
+ * @param id 비활성화할 API 클라이언트 ID
+ */
 async function handleDeactivateClient(id: number) {
   await ElMessageBox.confirm('API 클라이언트를 비활성화하시겠습니까?', '확인', { type: 'warning' })
   await adminApi.deactivateApiClient(id)
@@ -141,30 +224,55 @@ async function handleDeactivateClient(id: number) {
   loadClients()
 }
 
+/**
+ * 특정 클라이언트의 API 키 표시 상태를 토글한다.
+ *
+ * @param id 표시 상태를 토글할 API 클라이언트 ID
+ */
 function toggleKeyReveal(id: number) {
   if (revealedKeys.value.has(id)) revealedKeys.value.delete(id)
   else revealedKeys.value.add(id)
 }
 
+/**
+ * API 키의 앞 8자만 표시하고 나머지를 마스킹한다.
+ *
+ * @param key 마스킹할 API 키 문자열
+ * @returns 앞 8자 + 마스킹 문자열
+ */
 function maskKey(key: string) {
   return key.slice(0, 8) + '••••••••••••••••••••'
 }
 
+/**
+ * API 키를 클립보드에 복사하고 성공 메시지를 표시한다.
+ *
+ * @param key 복사할 API 키 문자열
+ */
 async function copyKey(key: string) {
   await navigator.clipboard.writeText(key)
   ElMessage.success('API 키가 복사되었습니다.')
 }
 
 // ── 감사 로그 (탭 D) ─────────────────────────
+/** 감사 로그 목록 페이지 데이터 */
 const logs = ref<AdminPage<ProcessLogResponse> | null>(null)
+
+/** 감사 로그 목록 로딩 상태 */
 const logsLoading = ref(false)
 
+/** 로그 처리 결과 상태 코드를 한국어 레이블 및 Element Plus 태그 타입으로 매핑한다 */
 const LOG_STATUS_MAP: Record<string, { label: string; type: 'success' | 'danger' | 'warning' | 'info' }> = {
   SUCCESS: { label: '성공', type: 'success' },
   FAILURE: { label: '실패', type: 'danger' },
   SKIP:    { label: '건너뜀', type: 'warning' },
 }
 
+/**
+ * 지정한 페이지 번호의 감사 로그 목록을 조회한다.
+ *
+ * @param page 0-based 페이지 번호 (기본값: 0)
+ */
 async function loadLogs(page = 0) {
   logsLoading.value = true
   try {
@@ -401,7 +509,7 @@ onMounted(() => {
       v-model="createUserDialogVisible"
       title="사용자 추가"
       width="420px"
-      @closed="resetUserForm" 
+      @closed="resetUserForm"
     >
       <el-form
         ref="createUserFormRef"

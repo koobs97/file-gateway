@@ -27,16 +27,41 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * SecurityConfig
+ * - Spring Security 전체 보안 정책을 정의하는 설정 클래스
+ * - JWT 및 API 키 기반 Stateless 인증 필터 체인 구성
+ * - CORS, CSRF, 인가 규칙, 예외 응답을 일괄 설정
+ * - ADMIN/AUDITOR/END_USER/API_CLIENT 역할별 엔드포인트 접근 제어
+ *
+ * @author 구본상
+ * @since 2026-03-26
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    /** JWT 토큰 검증 필터 */
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    /** API 키 헤더 검증 필터 */
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
+
+    /** JSON 직렬화를 위한 ObjectMapper */
     private final ObjectMapper objectMapper;
 
+    /**
+     * Spring Security 필터 체인을 구성한다.
+     * - CSRF 비활성화, CORS 설정, Stateless 세션 정책 적용
+     * - 공개 엔드포인트(인증, Swagger, WebSocket)를 제외한 모든 요청에 인증 요구
+     * - 인증 실패 시 401, 인가 실패 시 403 JSON 응답 반환
+     *
+     * @param http HttpSecurity 빌더
+     * @return 구성된 SecurityFilterChain
+     * @throws Exception 필터 체인 빌드 중 예외 발생 시
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -78,16 +103,36 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * BCrypt 기반 패스워드 인코더 빈을 등록한다.
+     *
+     * @return BCryptPasswordEncoder 인스턴스
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Spring Security의 AuthenticationManager 빈을 등록한다.
+     *
+     * @param config AuthenticationConfiguration
+     * @return AuthenticationManager 인스턴스
+     * @throws Exception AuthenticationManager 생성 중 예외 발생 시
+     */
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
 
+    /**
+     * CORS 허용 정책을 정의한다.
+     * - 허용 오리진: localhost:5173 (Vite), localhost:3000
+     * - 허용 메서드: GET, POST, PUT, PATCH, DELETE, OPTIONS
+     * - 인증 정보(쿠키 등) 포함 허용
+     *
+     * @return CORS 설정 소스
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

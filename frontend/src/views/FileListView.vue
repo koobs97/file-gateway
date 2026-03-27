@@ -1,3 +1,13 @@
+<!--
+  FileListView
+  - CDR 파일 처리 목록 페이지
+  - 파일명/상태 필터 검색과 페이지네이션을 지원한다
+  - 행 클릭 시 오른쪽 Drawer에서 파일 상세 정보와 이벤트 이력을 확인한다
+  - ADMIN 권한자는 단건/일괄 삭제를 수행할 수 있다
+  - DONE 상태 파일의 무해화 결과물을 단건/일괄 다운로드할 수 있다
+  - WebSocket(STOMP)으로 PROCESSING 파일의 상태 변경을 실시간으로 반영한다
+  - 폴링(2초 간격)으로 WebSocket 미수신 상황을 보완한다
+-->
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -11,12 +21,21 @@ import type { FileStatusNotification, FileDetailResponse, FileEvent } from '../t
 
 const store = useFileStore()
 const authStore = useAuthStore()
+
+/** STOMP 클라이언트 인스턴스 */
 let stompClient: Client | null = null
+
+/** 폴링 타이머 참조 (clearInterval 용) */
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 // ── 검색 필터 ─────────────────────────────────
+/** 파일명 검색 키워드 */
 const keyword = ref('')
+
+/** 처리 상태 필터 선택값 */
 const statusFilter = ref('')
+
+/** 상태 필터 드롭다운 옵션 목록 */
 const STATUS_OPTIONS = [
   { label: '전체', value: '' },
   { label: '처리중', value: 'PROCESSING' },
@@ -26,6 +45,7 @@ const STATUS_OPTIONS = [
 ]
 
 // ── 상태 매핑 ─────────────────────────────────
+/** 처리 상태 코드를 한국어 레이블 및 Element Plus 태그 타입으로 매핑한다 */
 const STATUS_MAP: Record<string, { label: string; type: 'info' | 'warning' | 'success' | 'danger' }> = {
   UPLOADED:   { label: '업로드됨', type: 'info' },
   PROCESSING: { label: '처리중',   type: 'warning' },
@@ -34,14 +54,23 @@ const STATUS_MAP: Record<string, { label: string; type: 'info' | 'warning' | 'su
 }
 
 // ── 일괄 작업 ─────────────────────────────────
+/** 테이블 체크박스로 선택된 파일 목록 */
 const selected = ref<FileDetailResponse[]>([])
+
+/** 일괄 삭제 처리 중 여부 */
 const bulkDeleting = ref(false)
 
+/**
+ * 테이블 체크박스 선택 변경 이벤트 핸들러.
+ *
+ * @param rows 현재 선택된 행 목록
+ */
 function onSelectionChange(rows: FileDetailResponse[]) {
   selected.value = rows
 }
 
 // ── 삭제 확인 다이얼로그 ──────────────────────
+/** 삭제 확인 다이얼로그 상태 객체 */
 const deleteDialog = ref({
   visible: false,
   isBulk: false,
@@ -50,15 +79,29 @@ const deleteDialog = ref({
   deleting: false,
 })
 
+/**
+ * 단건 삭제 확인 다이얼로그를 열고 대상 파일 정보를 설정한다.
+ *
+ * @param id 삭제 대상 파일 ID
+ * @param name 삭제 대상 파일명
+ */
 function openDeleteDialog(id: number, name: string) {
   deleteDialog.value = { visible: true, isBulk: false, targetId: id, targetName: name, deleting: false }
 }
 
+/**
+ * 일괄 삭제 확인 다이얼로그를 열고 선택 파일 수를 표시한다.
+ * 선택된 항목이 없으면 아무 동작도 하지 않는다.
+ */
 function openBulkDeleteDialog() {
   if (!selected.value.length) return
   deleteDialog.value = { visible: true, isBulk: true, targetId: null, targetName: '', deleting: false }
 }
 
+/**
+ * 다이얼로그에서 삭제를 최종 확인하여 단건 또는 일괄 삭제를 수행한다.
+ * 완료 후 현재 페이지를 새로고침하고 다이얼로그를 닫는다.
+ */
 async function confirmDelete() {
   deleteDialog.value.deleting = true
   try {
@@ -77,6 +120,10 @@ async function confirmDelete() {
   }
 }
 
+/**
+ * 선택된 파일 중 DONE 상태인 파일을 모두 순차적으로 다운로드한다.
+ * DONE 상태 파일이 없으면 경고 메시지를 표시한다.
+ */
 async function handleBulkDownload() {
   const doneFiles = selected.value.filter((f) => f.status === 'DONE')
   if (!doneFiles.length) {
@@ -89,10 +136,23 @@ async function handleBulkDownload() {
 }
 
 // ── 단건 삭제/다운로드 ────────────────────────
+/**
+ * 단건 삭제 다이얼로그를 열어 삭제를 유도한다.
+ *
+ * @param id 삭제 대상 파일 ID
+ * @param name 삭제 대상 파일명
+ */
 function handleDelete(id: number, name: string) {
   openDeleteDialog(id, name)
 }
 
+/**
+ * 무해화된 파일을 서버에서 다운로드하여 브라우저 저장 대화상자를 트리거한다.
+ * 파일명에 'sanitized_' 접두사를 추가한다.
+ *
+ * @param id 다운로드할 파일 ID
+ * @param name 원본 파일명
+ */
 async function handleDownload(id: number, name: string) {
   try {
     const res = await fileApi.downloadFile(id)
@@ -109,11 +169,24 @@ async function handleDownload(id: number, name: string) {
 }
 
 // ── 상세 Drawer ───────────────────────────────
+/** 상세 Drawer 표시 여부 */
 const drawerVisible = ref(false)
+
+/** Drawer에 표시 중인 파일 상세 정보 */
 const drawerFile = ref<FileDetailResponse | null>(null)
+
+/** Drawer의 파일 이벤트 이력 목록 */
 const drawerEvents = ref<FileEvent[]>([])
+
+/** Drawer 이벤트 이력 로딩 상태 */
 const drawerEventsLoading = ref(false)
 
+/**
+ * 파일 행 클릭 시 상세 Drawer를 열고 기본 정보를 설정한다.
+ * ADMIN/AUDITOR 권한자인 경우 이벤트 이력도 추가 조회한다.
+ *
+ * @param row 클릭된 파일 행 데이터
+ */
 async function openDrawer(row: FileDetailResponse) {
   drawerFile.value = row
   drawerEvents.value = []
@@ -132,6 +205,12 @@ async function openDrawer(row: FileDetailResponse) {
   }
 }
 
+/**
+ * 이벤트 payload JSON 문자열을 읽기 쉬운 'key: value | ...' 형태로 포매팅한다.
+ *
+ * @param payload JSON 문자열 또는 null
+ * @returns 포매팅된 문자열, 파싱 불가 시 원본 문자열, 빈 경우 '-'
+ */
 function formatEventPayload(payload: string | null): string {
   if (!payload) return '-'
   try {
@@ -145,6 +224,10 @@ function formatEventPayload(payload: string | null): string {
 }
 
 // ── WebSocket + Polling ───────────────────────
+/**
+ * STOMP WebSocket 클라이언트를 초기화하고 연결한다.
+ * 연결 완료 시 현재 목록의 모든 파일에 대해 상태 알림을 구독한다.
+ */
 function connectWebSocket() {
   stompClient = new Client({
     webSocketFactory: () => new SockJS('/ws'),
@@ -157,6 +240,13 @@ function connectWebSocket() {
   stompClient.activate()
 }
 
+/**
+ * 특정 파일의 WebSocket 상태 알림 토픽을 구독한다.
+ * 알림 수신 시 store의 상태와 열려 있는 Drawer를 함께 업데이트한다.
+ * PROCESSING 이외 상태로 전환되면 폴링을 중단한다.
+ *
+ * @param file id 를 가진 파일 객체
+ */
 function subscribeFile(file: { id: number }) {
   stompClient?.subscribe(`/topic/files/${file.id}`, (msg) => {
     const notification: FileStatusNotification = JSON.parse(msg.body)
@@ -169,6 +259,11 @@ function subscribeFile(file: { id: number }) {
   })
 }
 
+/**
+ * 2초 간격의 폴링을 시작한다.
+ * PROCESSING 파일이 없으면 폴링을 자동으로 중단한다.
+ * 이미 폴링 중이면 중복 실행하지 않는다.
+ */
 function startPolling() {
   if (pollTimer) return
   pollTimer = setInterval(async () => {
@@ -182,10 +277,18 @@ function startPolling() {
   }, 2000)
 }
 
+/**
+ * 폴링 타이머를 중단하고 초기화한다.
+ */
 function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 }
 
+/**
+ * 지정한 페이지 번호로 파일 목록을 조회하고 WebSocket 구독 및 폴링을 관리한다.
+ *
+ * @param pageNum 0-based 페이지 번호
+ */
 async function loadPage(pageNum: number) {
   await store.fetchList(pageNum, keyword.value || undefined, statusFilter.value || undefined)
   const processing = store.page?.content.filter((f) => f.status === 'PROCESSING') ?? []
@@ -194,10 +297,16 @@ async function loadPage(pageNum: number) {
   else stopPolling()
 }
 
+/**
+ * 현재 필터 조건으로 첫 페이지를 조회한다.
+ */
 function handleSearch() {
   loadPage(0)
 }
 
+/**
+ * 검색 키워드와 상태 필터를 초기화하고 첫 페이지를 재조회한다.
+ */
 function handleReset() {
   keyword.value = ''
   statusFilter.value = ''

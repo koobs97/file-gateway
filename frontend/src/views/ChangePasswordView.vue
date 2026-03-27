@@ -1,3 +1,10 @@
+<!--
+  ChangePasswordView
+  - 비밀번호 변경 페이지
+  - 관리자가 생성한 계정의 최초 로그인 시 비밀번호 변경을 강제하는 화면이다
+  - 현재 비밀번호, 새 비밀번호, 새 비밀번호 확인 필드를 포함한다
+  - 변경 성공 시 /me 를 재조회하여 passwordChanged 상태를 갱신하고 루트로 이동한다
+-->
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
@@ -9,14 +16,20 @@ import { Lock } from '@element-plus/icons-vue'
 const router = useRouter()
 const authStore = useAuthStore()
 
+/** 비밀번호 변경 API 호출 중 로딩 상태 */
 const loading = ref(false)
+
+/** Element Plus 폼 인스턴스 참조 (유효성 검사 호출용) */
 const formRef = ref()
+
+/** 비밀번호 변경 폼 데이터 */
 const form = reactive({
   currentPassword: '',
   newPassword: '',
   confirmPassword: '',
 })
 
+/** 비밀번호 변경 폼 유효성 검사 규칙 */
 const rules = {
   currentPassword: [{ required: true, message: '현재 비밀번호를 입력하세요.', trigger: 'blur' }],
   newPassword: [
@@ -35,6 +48,11 @@ const rules = {
   ],
 }
 
+/**
+ * 폼 유효성 검사를 수행하고 비밀번호 변경 API를 호출한다.
+ * 성공 시 authStore.fetchMe()로 사용자 상태를 갱신하고 루트('/')로 이동한다.
+ * 실패 시 서버 오류 메시지 또는 기본 오류 메시지를 ElMessage로 표시한다.
+ */
 async function handleSubmit() {
   if (!formRef.value) return
   try {

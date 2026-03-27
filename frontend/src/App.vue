@@ -1,3 +1,10 @@
+<!--
+  App
+  - 애플리케이션 최상위 루트 컴포넌트
+  - 전역 헤더(네비게이션, 사용자 정보, 세션 타이머, 테마 토글)를 렌더링한다
+  - 로그인/비밀번호 변경 페이지에서는 헤더를 숨긴다
+  - 로그아웃 확인 다이얼로그를 포함하며 로그아웃 완료 시 /login 으로 이동한다
+-->
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
@@ -10,6 +17,11 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
+/**
+ * 현재 사용자의 역할 코드를 한국어 레이블로 변환한다.
+ *
+ * @returns 역할 한국어 이름 (예: '관리자', '감사자')
+ */
 const roleLabel = computed(() => {
   const map: Record<string, string> = {
     ROLE_ADMIN: '관리자',
@@ -20,6 +32,11 @@ const roleLabel = computed(() => {
   return map[authStore.user?.role ?? ''] ?? authStore.user?.role ?? ''
 })
 
+/**
+ * 역할에 따라 Element Plus 태그/아바타에 사용할 색상 타입을 반환한다.
+ *
+ * @returns Element Plus 컬러 타입 문자열 ('danger' | 'warning' | 'success' | 'info')
+ */
 const roleType = computed(() => {
   const map: Record<string, string> = {
     ROLE_ADMIN: 'danger',
@@ -30,9 +47,16 @@ const roleType = computed(() => {
   return map[authStore.user?.role ?? ''] ?? 'info'
 })
 
+/** 로그아웃 확인 다이얼로그 표시 여부 */
 const logoutDialogVisible = ref(false)
+
+/** 로그아웃 API 호출 중 로딩 상태 */
 const loggingOut = ref(false)
 
+/**
+ * 로그아웃을 수행하고 /login 으로 리다이렉트한다.
+ * authStore.logout() 호출 후 다이얼로그를 닫는다.
+ */
 async function confirmLogout() {
   loggingOut.value = true
   await authStore.logout()
@@ -41,6 +65,7 @@ async function confirmLogout() {
   router.push('/login')
 }
 
+/** 현재 경로가 헤더를 숨겨야 하는 페이지인지 여부 */
 const isLoginPage = computed(() => route.path === '/login' || route.path === '/change-password')
 </script>
 
