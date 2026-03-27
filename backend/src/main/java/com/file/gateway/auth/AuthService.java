@@ -1,5 +1,6 @@
 package com.file.gateway.auth;
 
+import com.file.gateway.auth.dto.ChangePasswordRequest;
 import com.file.gateway.auth.dto.LoginRequest;
 import com.file.gateway.auth.dto.TokenResponse;
 import com.file.gateway.common.config.JwtProperties;
@@ -67,5 +68,17 @@ public class AuthService {
     public void logout(String username) {
         userRepository.findByUsername(username)
                 .ifPresent(user -> user.updateRefreshToken(null));
+    }
+
+    @Transactional
+    public void changePassword(String username, ChangePasswordRequest request) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+            throw new BusinessException(ErrorCode.INVALID_CURRENT_PASSWORD);
+        }
+
+        user.markPasswordChanged(passwordEncoder.encode(request.newPassword()));
     }
 }

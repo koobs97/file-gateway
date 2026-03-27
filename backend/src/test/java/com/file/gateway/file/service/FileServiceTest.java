@@ -78,7 +78,7 @@ class FileServiceTest {
         });
 
         // when
-        FileUploadResponse result = fileService.upload(mockFile);
+        FileUploadResponse result = fileService.upload(mockFile, "testuser");
 
         // then
         assertThat(result.fileId()).isEqualTo(1L);
@@ -99,7 +99,7 @@ class FileServiceTest {
         when(fileMetadataRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(file));
 
         // when
-        FileDetailResponse result = fileService.getFile(1L);
+        FileDetailResponse result = fileService.getFile(1L, null, true);
 
         // then
         assertThat(result.id()).isEqualTo(1L);
@@ -113,7 +113,21 @@ class FileServiceTest {
         when(fileMetadataRepository.findByIdAndDeletedAtIsNull(99L)).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> fileService.getFile(99L))
+        assertThatThrownBy(() -> fileService.getFile(99L, null, true))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.FILE_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("권한 없는 사용자가 타인 파일 조회 시 FILE_NOT_FOUND 예외를 던진다")
+    void getFile_OtherUserFile_ThrowsFileNotFound() {
+        // given
+        when(fileMetadataRepository.findByIdAndDeletedAtIsNullAndUploaderName(1L, "other"))
+                .thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> fileService.getFile(1L, "other", false))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.FILE_NOT_FOUND));
@@ -146,7 +160,7 @@ class FileServiceTest {
         when(fileMetadataRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(file));
 
         // when & then
-        assertThatThrownBy(() -> fileService.downloadSanitizedFile(1L))
+        assertThatThrownBy(() -> fileService.downloadSanitizedFile(1L, null, true))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.PROCESS_FAILED));
@@ -162,7 +176,7 @@ class FileServiceTest {
         when(storageService.exists("/uploads/sanitized/uuid.docx")).thenReturn(false);
 
         // when & then
-        assertThatThrownBy(() -> fileService.downloadSanitizedFile(1L))
+        assertThatThrownBy(() -> fileService.downloadSanitizedFile(1L, null, true))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.FILE_NOT_FOUND));

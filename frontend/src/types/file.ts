@@ -28,7 +28,7 @@ export interface FilePage {
 export interface FileEvent {
   id: number
   eventType: string
-  payload: Record<string, unknown>
+  payload: string | null
   createdAt: string
 }
 

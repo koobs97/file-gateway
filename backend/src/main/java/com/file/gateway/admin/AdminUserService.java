@@ -1,5 +1,6 @@
 package com.file.gateway.admin;
 
+import com.file.gateway.admin.dto.CreateUserRequest;
 import com.file.gateway.admin.dto.UserSummaryResponse;
 import com.file.gateway.common.exception.BusinessException;
 import com.file.gateway.common.response.ErrorCode;
@@ -8,6 +9,7 @@ import com.file.gateway.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +18,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminUserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Transactional
+    public UserSummaryResponse createUser(CreateUserRequest request) {
+        if (userRepository.existsByUsername(request.username())) {
+            throw new BusinessException(ErrorCode.USERNAME_ALREADY_EXISTS);
+        }
+        User user = User.builder()
+                .username(request.username())
+                .password(passwordEncoder.encode(request.password()))
+                .role(request.role())
+                .build();
+        user.requirePasswordChange();
+        return UserSummaryResponse.from(userRepository.save(user));
+    }
 
     @Transactional(readOnly = true)
     public Page<UserSummaryResponse> getUsers(Pageable pageable) {

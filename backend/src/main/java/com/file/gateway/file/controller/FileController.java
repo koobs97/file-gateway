@@ -19,6 +19,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -38,22 +40,31 @@ public class FileController {
     @PreAuthorize("hasAnyRole('ADMIN', 'END_USER', 'API_CLIENT')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<FileUploadResponse>> upload(
+            @AuthenticationPrincipal UserDetails principal,
             @RequestPart("file") MultipartFile file) throws IOException {
-        FileUploadResponse response = fileService.upload(file);
+        FileUploadResponse response = fileService.upload(file, principal.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(response));
     }
 
     @Operation(summary = "파일 목록 조회", description = "업로드된 파일 목록을 페이징으로 조회합니다.")
     @GetMapping
     public ResponseEntity<ApiResponse<Page<FileDetailResponse>>> getFiles(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "status", required = false) String status,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.ok(fileService.getFiles(pageable)));
+        boolean privileged = isPrivileged(principal);
+        return ResponseEntity.ok(ApiResponse.ok(
+                fileService.getFiles(keyword, status, pageable, principal.getUsername(), privileged)));
     }
 
     @Operation(summary = "파일 단건 조회")
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<FileDetailResponse>> getFile(@PathVariable("id") Long id) {
-        return ResponseEntity.ok(ApiResponse.ok(fileService.getFile(id)));
+    public ResponseEntity<ApiResponse<FileDetailResponse>> getFile(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable("id") Long id) {
+        boolean privileged = isPrivileged(principal);
+        return ResponseEntity.ok(ApiResponse.ok(fileService.getFile(id, principal.getUsername(), privileged)));
     }
 
     @Operation(summary = "파일 삭제 (soft delete)")
@@ -66,9 +77,12 @@ public class FileController {
 
     @Operation(summary = "무해화 파일 다운로드", description = "처리 완료(DONE) 상태인 파일만 다운로드 가능합니다.")
     @GetMapping("/{id}/download")
-    public ResponseEntity<Resource> download(@PathVariable("id") Long id) throws IOException {
-        FileDetailResponse fileInfo = fileService.getFile(id);
-        Resource resource = fileService.downloadSanitizedFile(id);
+    public ResponseEntity<Resource> download(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable("id") Long id) throws IOException {
+        boolean privileged = isPrivileged(principal);
+        FileDetailResponse fileInfo = fileService.getFile(id, principal.getUsername(), privileged);
+        Resource resource = fileService.downloadSanitizedFile(id, principal.getUsername(), privileged);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
@@ -85,5 +99,11 @@ public class FileController {
     @GetMapping("/{id}/events")
     public ResponseEntity<ApiResponse<List<FileEventResponse>>> getEvents(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.ok(fileService.getEvents(id)));
+    }
+
+    private boolean isPrivileged(UserDetails principal) {
+        return principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
+                        || a.getAuthority().equals("ROLE_AUDITOR"));
     }
 }
