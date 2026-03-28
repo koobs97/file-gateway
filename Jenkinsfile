@@ -167,7 +167,9 @@ pipeline {
             }
         }
         always {
-            // 미사용 이미지 정리 (디스크 절약)
+            // 중지된 임시 컨테이너 정리 (빌드 중 생성된 이름 없는 컨테이너 포함)
+            sh 'docker container prune -f || true'
+            // 24시간 이상 된 미사용 이미지 정리 (디스크 절약)
             sh 'docker image prune -f --filter "until=24h" || true'
         }
     }
