@@ -127,14 +127,15 @@ pipeline {
                     sleep 5
 
                     # 헬스체크 엔드포인트
-                    HEALTH=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost/api/health 2>/dev/null || echo "000")
+                    # Jenkins는 컨테이너 내부 → host.docker.internal로 호스트(nginx 80포트) 접근
+                    HEALTH=$(curl -sf -o /dev/null -w "%{http_code}" http://host.docker.internal/api/health 2>/dev/null || echo "000")
                     if [ "$HEALTH" != "200" ]; then
                         echo "스모크 테스트 실패: /api/health → HTTP $HEALTH"
                         exit 1
                     fi
 
                     # Swagger 접근 가능 여부
-                    SWAGGER=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost/swagger-ui/index.html 2>/dev/null || echo "000")
+                    SWAGGER=$(curl -sf -o /dev/null -w "%{http_code}" http://host.docker.internal/swagger-ui/index.html 2>/dev/null || echo "000")
                     echo "Swagger UI: HTTP $SWAGGER"
 
                     echo "스모크 테스트 통과! (health=$HEALTH)"
