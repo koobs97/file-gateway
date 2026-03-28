@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 # =====================================================================
 # 롤백 스크립트
-#
-# 동작 원리:
-#  현재 활성 슬롯의 반대 슬롯을 기동하고 nginx upstream을 즉시 전환
-#  (컨테이너가 없는 첫 배포 상황도 처리)
-#
-# 사용법:
-#  ./docker/scripts/rollback.sh
 # =====================================================================
 set -euo pipefail
 
@@ -30,15 +23,27 @@ fi
 
 set -a; source "$ENV_FILE"; set +a
 
-# ── 인프라 자동 기동 (네트워크가 없으면 인프라부터 시작) ─────────────
-if ! docker network ls --format '{{.Name}}' | grep -q "^file-gateway-net$"; then
-    warn "file-gateway-net 네트워크가 없습니다. 인프라를 시작합니다..."
-    docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" up -d
-    info "인프라 기동 대기 중 (10초)..."
-    sleep 10
+# ── 인프라 자동 기동 (deploy.sh와 동일 로직) ─────────────────────────
+info "인프라 상태 확인 중..."
+
+docker network create file-gateway-net 2>/dev/null || true
+
+if docker ps -a --format '{{.Names}}' | grep -q "^file-gateway-postgres$"; then
+    docker start file-gateway-postgres 2>/dev/null || true
+    docker network connect file-gateway-net file-gateway-postgres 2>/dev/null || true
+else
+    docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" up -d postgres
 fi
 
-# ── 현재 활성 슬롯 판단 ───────────────────────────────────────────────
+if docker ps -a --format '{{.Names}}' | grep -q "^file-gateway-nginx$"; then
+    docker start file-gateway-nginx 2>/dev/null || true
+    docker network connect file-gateway-net file-gateway-nginx 2>/dev/null || true
+else
+    docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" up -d nginx
+    sleep 3
+fi
+
+# ── 현재 활성 슬롯 판단 ──────────────────────────────────────────────
 if grep -q "file-gateway-blue" "$UPSTREAM_CONF" 2>/dev/null; then
     ACTIVE="blue";   FALLBACK="green"
     FALLBACK_PORT=8082
@@ -49,16 +54,16 @@ fi
 
 info "현재 활성: $ACTIVE  →  롤백 대상: $FALLBACK"
 
-# ── 폴백 슬롯 기동 ────────────────────────────────────────────────────
-# docker compose up -d 는 컨테이너가 없어도(최초), 중지 상태여도 모두 처리함
+# ── 폴백 슬롯 기동 ───────────────────────────────────────────────────
 warn "폴백 슬롯 $FALLBACK 기동 중..."
 docker compose -f "$COMPOSE_APP" --env-file "$ENV_FILE" \
     up -d --no-deps "file-gateway-$FALLBACK"
 
 # ── 헬스체크 대기 ────────────────────────────────────────────────────
+HEALTH_HOST="${HEALTH_HOST:-host.docker.internal}"
 for i in $(seq 1 20); do
     HTTP_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
-        "http://localhost:${FALLBACK_PORT}/api/health" 2>/dev/null || echo "000")
+        "http://${HEALTH_HOST}:${FALLBACK_PORT}/api/health" 2>/dev/null || echo "000")
     if [[ "$HTTP_STATUS" == "200" ]]; then
         info "폴백 슬롯 준비 완료 (${i}/20)"
         break
@@ -70,30 +75,20 @@ for i in $(seq 1 20); do
     sleep 3
 done
 
-# ── Nginx upstream 전환 ───────────────────────────────────────────────
-# nginx가 없으면 reload 건너뜀 (인프라 방금 기동한 경우)
+# ── Nginx upstream 전환 ──────────────────────────────────────────────
+cat > "$UPSTREAM_CONF" <<EOF
+# Blue-Green 업스트림 (rollback.sh에 의해 롤백됨)
+# 현재 활성: $FALLBACK
+upstream backend {
+    server file-gateway-${FALLBACK}:8080;
+}
+EOF
+
 if docker ps --format '{{.Names}}' | grep -q "file-gateway-nginx"; then
-    info "Nginx upstream 전환: $ACTIVE → $FALLBACK"
-    cat > "$UPSTREAM_CONF" <<EOF
-# Blue-Green 업스트림 (rollback.sh에 의해 롤백됨)
-# 현재 활성: $FALLBACK
-upstream backend {
-    server file-gateway-${FALLBACK}:8080;
-}
-EOF
     docker exec file-gateway-nginx nginx -s reload
-else
-    warn "Nginx 컨테이너가 없습니다. upstream.conf 파일만 업데이트합니다."
-    cat > "$UPSTREAM_CONF" <<EOF
-# Blue-Green 업스트림 (rollback.sh에 의해 롤백됨)
-# 현재 활성: $FALLBACK
-upstream backend {
-    server file-gateway-${FALLBACK}:8080;
-}
-EOF
+    info "Nginx upstream 전환 완료: $ACTIVE → $FALLBACK"
 fi
 
 info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-info "롤백 완료!"
-info "  활성 슬롯: $FALLBACK  (이전: $ACTIVE)"
+info "롤백 완료! 활성 슬롯: $FALLBACK"
 info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
