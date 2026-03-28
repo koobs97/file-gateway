@@ -105,10 +105,16 @@ pipeline {
         }
 
         // ── Stage 4: Deploy (Blue-Green) ─────────────────────────────
+        // Jenkins Credentials에서 .env.prod 파일을 주입 후 배포 스크립트 실행
         stage('Deploy') {
             steps {
-                sh 'chmod +x docker/scripts/deploy.sh docker/scripts/rollback.sh'
-                sh "docker/scripts/deploy.sh ${IMAGE_TAG}"
+                withCredentials([file(credentialsId: 'koobs97-docker-env', variable: 'ENV_PROD_FILE')]) {
+                    sh '''
+                        cp "$ENV_PROD_FILE" docker/.env.prod
+                        chmod +x docker/scripts/deploy.sh docker/scripts/rollback.sh
+                    '''
+                    sh "docker/scripts/deploy.sh ${IMAGE_TAG}"
+                }
             }
         }
 
@@ -152,7 +158,13 @@ pipeline {
         }
         failure {
             echo '배포 실패! 자동 롤백을 시도합니다...'
-            sh 'chmod +x docker/scripts/rollback.sh && docker/scripts/rollback.sh || echo "롤백 스크립트 실패 - 수동 복구 필요"'
+            withCredentials([file(credentialsId: 'koobs97-docker-env', variable: 'ENV_PROD_FILE')]) {
+                sh '''
+                    cp "$ENV_PROD_FILE" docker/.env.prod || true
+                    chmod +x docker/scripts/rollback.sh
+                    docker/scripts/rollback.sh || echo "롤백 스크립트 실패 - 수동 복구 필요"
+                '''
+            }
         }
         always {
             // 미사용 이미지 정리 (디스크 절약)
