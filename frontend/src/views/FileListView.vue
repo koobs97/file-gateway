@@ -57,8 +57,6 @@ const STATUS_MAP: Record<string, { label: string; type: 'info' | 'warning' | 'su
 /** 테이블 체크박스로 선택된 파일 목록 */
 const selected = ref<FileDetailResponse[]>([])
 
-/** 일괄 삭제 처리 중 여부 */
-const bulkDeleting = ref(false)
 
 /**
  * 테이블 체크박스 선택 변경 이벤트 핸들러.
