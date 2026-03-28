@@ -53,6 +53,25 @@ export IMAGE_TAG  # source 후 덮어쓰기 (파일의 IMAGE_TAG보다 인자 �
 
 info "배포 시작 — 이미지 태그: $IMAGE_TAG"
 
+# ── 인프라(postgres + nginx) 자동 기동 ───────────────────────────────
+# Jenkins 파이프라인 첫 실행 또는 인프라가 내려간 경우를 대비
+COMPOSE_INFRA="$DOCKER_DIR/docker-compose.infra.yml"
+if ! docker network ls --format '{{.Name}}' | grep -q "^file-gateway-net$"; then
+    warn "file-gateway-net 네트워크가 없습니다. 인프라를 시작합니다..."
+    docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" up -d
+    info "인프라 기동 대기 중 (10초)..."
+    sleep 10
+else
+    # 인프라 컨테이너 상태만 확인하고 내려간 것 있으면 재기동
+    INFRA_DOWN=$(docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" \
+        ps --status exited --format json 2>/dev/null | grep -c '"Name"' || echo "0")
+    if [[ "$INFRA_DOWN" -gt 0 ]]; then
+        warn "인프라 컨테이너 일부가 중지 상태입니다. 재기동합니다..."
+        docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" up -d
+        sleep 5
+    fi
+fi
+
 # ── 현재 활성 슬롯 판단 ──────────────────────────────────────────────
 if grep -q "file-gateway-blue" "$UPSTREAM_CONF" 2>/dev/null; then
     ACTIVE="blue";   INACTIVE="green"
