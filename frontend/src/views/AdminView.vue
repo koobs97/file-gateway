@@ -9,12 +9,12 @@
 -->
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { adminApi } from '../api/admin'
 import type { UserSummaryResponse, ApiClientResponse, ProcessLogResponse, AdminPage } from '../types/admin'
 import type { FileStatistics } from '../types/file'
 // ── 통계 아이콘 임포트
-import { Warning, Delete, Loading, Close } from '@element-plus/icons-vue'
+import { Warning, Loading, Close } from '@element-plus/icons-vue'
 
 // ── API 클라이언트 비활성화 다이얼로그 상태 ──
 const deactivateDialog = reactive({
