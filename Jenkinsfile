@@ -51,16 +51,12 @@ pipeline {
         }
 
         // ── Stage 2: Test ────────────────────────────────────────────
-        // Docker 컨테이너 안에서 실행 → Jenkins에 Java 불필요
+        // Jenkins 컨테이너에 JDK17 내장 → 직접 Gradle 실행 (Docker-in-Docker 경로 문제 회피)
         stage('Test') {
             steps {
-                sh '''
-                    docker run --rm \
-                        -v "$PWD/backend:/app" \
-                        -w /app \
-                        gradle:8.5-jdk17-alpine \
-                        sh -c "chmod +x gradlew && ./gradlew test --no-daemon -q"
-                '''
+                dir('backend') {
+                    sh 'chmod +x gradlew && ./gradlew test --no-daemon -q'
+                }
             }
             post {
                 always {
@@ -156,7 +152,7 @@ pipeline {
         }
         failure {
             echo '배포 실패! 자동 롤백을 시도합니다...'
-            sh 'docker/scripts/rollback.sh || echo "롤백 스크립트 실패 - 수동 복구 필요"'
+            sh 'chmod +x docker/scripts/rollback.sh && docker/scripts/rollback.sh || echo "롤백 스크립트 실패 - 수동 복구 필요"'
         }
         always {
             // 미사용 이미지 정리 (디스크 절약)
