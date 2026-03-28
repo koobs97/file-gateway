@@ -1,0 +1,81 @@
+# =====================================================================
+# 애플리케이션 서비스 (배포 시 교체)
+# - file-gateway-blue     : 백엔드 슬롯 A (포트 8081)
+# - file-gateway-green    : 백엔드 슬롯 B (포트 8082)
+# - file-gateway-frontend : 프론트엔드 (Vue SPA)
+#
+# Blue-Green 배포:
+#   deploy.sh가 비활성 슬롯을 시작 → 헬스체크 → upstream.conf 교체 → nginx reload
+#
+# 실행: docker-compose -f docker/docker-compose.app.yml --env-file docker/.env.prod up -d
+# =====================================================================
+
+services:
+
+  # ── 백엔드 슬롯 A (Blue) ─────────────────────────────────────────
+  file-gateway-blue:
+    image: file-gateway-backend:${IMAGE_TAG:-latest}
+    container_name: file-gateway-blue
+    ports:
+      - "8081:8080"   # 헬스체크용 (nginx는 내부 네트워크 포트 8080 사용)
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL:          jdbc:postgresql://file-gateway-postgres:5432/${DB_NAME}
+      DB_USER:         ${DB_USER}
+      DB_PASSWORD:     ${DB_PASSWORD}
+      JWT_SECRET:      ${JWT_SECRET}
+      STORAGE_PATH:    /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - file-gateway-net
+    restart: "no"    # deploy.sh가 직접 관리 (auto-restart 불필요)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  # ── 백엔드 슬롯 B (Green) ────────────────────────────────────────
+  file-gateway-green:
+    image: file-gateway-backend:${IMAGE_TAG:-latest}
+    container_name: file-gateway-green
+    ports:
+      - "8082:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL:          jdbc:postgresql://file-gateway-postgres:5432/${DB_NAME}
+      DB_USER:         ${DB_USER}
+      DB_PASSWORD:     ${DB_PASSWORD}
+      JWT_SECRET:      ${JWT_SECRET}
+      STORAGE_PATH:    /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - file-gateway-net
+    restart: "no"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  # ── 프론트엔드 (Vue SPA + Nginx) ────────────────────────────────
+  file-gateway-frontend:
+    image: file-gateway-frontend:${IMAGE_TAG:-latest}
+    container_name: file-gateway-frontend
+    # 포트 미노출: nginx 리버스 프록시를 통해서만 접근
+    networks:
+      - file-gateway-net
+    restart: unless-stopped
+
+networks:
+  file-gateway-net:
+    name: file-gateway-net
+    external: true   # infra compose에서 생성된 네트워크 사용
+
+volumes:
+  uploads_data:
+    name: file-gateway-uploads

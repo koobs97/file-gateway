@@ -1,0 +1,39 @@
+# =====================================================================
+# Jenkins CI/CD 서비스
+#
+# 실행:
+#   docker compose -f docker/docker-compose.jenkins.yml up -d --build
+#
+# 초기 admin 비밀번호 확인:
+#   docker exec file-gateway-jenkins \
+#     cat /var/jenkins_home/secrets/initialAdminPassword
+#
+# 접속: http://localhost:9090
+# =====================================================================
+
+services:
+  jenkins:
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+    image: file-gateway-jenkins:latest
+    container_name: file-gateway-jenkins
+    ports:
+      - "9090:8080"      # Jenkins Web UI
+      - "50000:50000"    # Jenkins Agent 통신 포트
+    environment:
+      # Java 힙 메모리 설정 (빌드 시 OOM 방지)
+      JAVA_OPTS: "-Xmx1g -Xms512m -Dhudson.model.DirectoryBrowserSupport.CSP="
+    volumes:
+      # Jenkins 홈 데이터 영속화 (설정, 빌드 이력, 플러그인)
+      - jenkins_home:/var/jenkins_home
+      # 호스트 Docker 데몬 소켓 마운트 (Jenkins → 호스트 Docker 제어)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 프로젝트 루트 마운트 (파이프라인에서 소스 접근, 선택사항)
+      # - ../../:/workspace:ro
+    restart: unless-stopped
+    user: root   # Docker socket 권한 (로컬 개발 환경용)
+
+volumes:
+  jenkins_home:
+    name: file-gateway-jenkins-home

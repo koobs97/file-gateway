@@ -14,7 +14,42 @@ import { adminApi } from '../api/admin'
 import type { UserSummaryResponse, ApiClientResponse, ProcessLogResponse, AdminPage } from '../types/admin'
 import type { FileStatistics } from '../types/file'
 // ── 통계 아이콘 임포트
-import { InfoFilled } from '@element-plus/icons-vue'
+import { Warning, Delete, Loading, Close } from '@element-plus/icons-vue'
+
+// ── API 클라이언트 비활성화 다이얼로그 상태 ──
+const deactivateDialog = reactive({
+  visible: false,
+  targetId: null as number | null,
+  targetName: '',
+  loading: false
+})
+
+/**
+ * 비활성화 다이얼로그 열기
+ */
+function openDeactivateDialog(row: ApiClientResponse) {
+  deactivateDialog.targetId = row.id
+  deactivateDialog.targetName = row.clientName
+  deactivateDialog.visible = true
+}
+
+/**
+ * 최종 비활성화 실행
+ */
+async function confirmDeactivate() {
+  if (deactivateDialog.targetId === null) return
+  
+  deactivateDialog.loading = true
+  try {
+    await adminApi.deactivateApiClient(deactivateDialog.targetId)
+    ElMessage.success('API 클라이언트가 비활성화되었습니다.')
+    deactivateDialog.visible = false
+    loadClients()
+  } finally {
+    deactivateDialog.loading = false
+  }
+}
+
 
 // ── 통계 ─────────────────────────────────────
 /** 파일 처리 통계 데이터 */
@@ -211,18 +246,6 @@ async function handleCreateClient() {
   }
 }
 
-/**
- * API 클라이언트를 비활성화한다.
- * ElMessageBox 확인 후 비활성화 API를 호출하고 목록을 새로고침한다.
- *
- * @param id 비활성화할 API 클라이언트 ID
- */
-async function handleDeactivateClient(id: number) {
-  await ElMessageBox.confirm('API 클라이언트를 비활성화하시겠습니까?', '확인', { type: 'warning' })
-  await adminApi.deactivateApiClient(id)
-  ElMessage.success('비활성화되었습니다.')
-  loadClients()
-}
 
 /**
  * 특정 클라이언트의 API 키 표시 상태를 토글한다.
@@ -281,6 +304,19 @@ async function loadLogs(page = 0) {
   } finally {
     logsLoading.value = false
   }
+}
+
+/**
+ * 날짜 문자열을 `YYYY-MM-DD HH:mm` 형식의 한 줄 문자열로 변환한다.
+ *
+ * @param dt ISO 날짜 문자열
+ * @returns 콤팩트 날짜+시각 문자열
+ */
+function formatDateTime(dt: string): string {
+  const d = new Date(dt)
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `${date} ${time}`
 }
 
 onMounted(() => {
@@ -366,7 +402,7 @@ onMounted(() => {
                 </el-select>
               </template>
             </el-table-column>
-            <el-table-column label="상태" width="110">
+            <el-table-column label="상태" minWidth="110">
               <template #default="{ row }">
                 <el-switch
                   :model-value="row.active"
@@ -377,9 +413,9 @@ onMounted(() => {
                 />
               </template>
             </el-table-column>
-            <el-table-column label="가입일" min-width="150">
+            <el-table-column label="가입일" width="148">
               <template #default="{ row }">
-                {{ new Date(row.createdAt).toLocaleString('ko-KR') }}
+                {{ formatDateTime(row.createdAt) }}
               </template>
             </el-table-column>
           </el-table>
@@ -412,12 +448,12 @@ onMounted(() => {
                   <code class="api-key-text">
                     {{ revealedKeys.has(row.id) ? row.apiKey : maskKey(row.apiKey) }}
                   </code>
-                  <el-button size="small" text @click="toggleKeyReveal(row.id)">
+                  <button class="key-btn view" @click="toggleKeyReveal(row.id)">
                     {{ revealedKeys.has(row.id) ? '숨김' : '보기' }}
-                  </el-button>
-                  <el-button size="small" text type="primary" @click="copyKey(row.apiKey)">
+                  </button>
+                  <button class="key-btn copy" @click="copyKey(row.apiKey)">
                     복사
-                  </el-button>
+                  </button>
                 </div>
               </template>
             </el-table-column>
@@ -428,9 +464,9 @@ onMounted(() => {
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="생성일" width="150">
+            <el-table-column label="생성일" width="148">
               <template #default="{ row }">
-                {{ new Date(row.createdAt).toLocaleString('ko-KR') }}
+                {{ formatDateTime(row.createdAt) }}
               </template>
             </el-table-column>
             <el-table-column label="작업" width="100">
@@ -440,7 +476,7 @@ onMounted(() => {
                   type="danger"
                   size="small"
                   plain
-                  @click="handleDeactivateClient(row.id)"
+                  @click="openDeactivateDialog(row)" 
                 >
                   비활성화
                 </el-button>
@@ -483,9 +519,9 @@ onMounted(() => {
               </template>
             </el-table-column>
             <el-table-column prop="message" label="메시지" min-width="200" show-overflow-tooltip />
-            <el-table-column label="시각" width="155">
+            <el-table-column label="시각" width="148">
               <template #default="{ row }">
-                {{ new Date(row.createdAt).toLocaleString('ko-KR') }}
+                {{ formatDateTime(row.createdAt) }}
               </template>
             </el-table-column>
           </el-table>
@@ -566,6 +602,38 @@ onMounted(() => {
         <el-button type="primary" :loading="createLoading" @click="handleCreateClient">
           생성
         </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- API 클라이언트 비활성화 확인 다이얼로그 -->
+    <el-dialog
+      v-model="deactivateDialog.visible"
+      :show-close="false"
+      width="380px"
+      align-center
+      class="confirm-dialog"
+    >
+      <div class="dc-body">
+        <div class="dc-icon-wrap warning"> <!-- 경고 의미로 주황색 테마 -->
+          <el-icon class="dc-big-icon"><Warning /></el-icon>
+        </div>
+        <p class="dc-title">클라이언트 비활성화</p>
+        <p class="dc-desc">
+          <strong>'{{ deactivateDialog.targetName }}'</strong>을(를) 비활성화하시겠습니까?<br>
+          비활성 시 해당 API 키를 통한 접속이 즉시 차단됩니다.
+        </p>
+      </div>
+      <template #footer>
+        <div class="dc-footer">
+          <button class="dc-cancel-btn" :disabled="deactivateDialog.loading" @click="deactivateDialog.visible = false">
+            취소
+          </button>
+          <button class="dc-confirm-btn warning" :disabled="deactivateDialog.loading" @click="confirmDeactivate">
+            <el-icon v-if="deactivateDialog.loading" class="is-loading"><Loading /></el-icon>
+            <el-icon v-else><Close /></el-icon>
+            {{ deactivateDialog.loading ? '처리 중...' : '비활성화 실행' }}
+          </button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -678,6 +746,41 @@ onMounted(() => {
   border-radius: 4px;
 }
 
+/* 보기/복사 버튼 — 다크/라이트 모드 모두 명시적 색상 */
+.key-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.key-btn.view {
+  background: transparent;
+  border: 1px solid var(--el-border-color);
+  color: var(--el-text-color-regular);
+}
+.key-btn.view:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+.key-btn.copy {
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  color: #818cf8;
+}
+.key-btn.copy:hover {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: #818cf8;
+  color: #a5b4fc;
+}
+
 /* 생성 힌트 */
 .create-hint {
   display: flex;
@@ -694,4 +797,71 @@ onMounted(() => {
   justify-content: center;
   margin-top: 14px;
 }
+
+:deep(.confirm-dialog) {
+  border-radius: 16px !important;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color-overlay) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15) !important;
+}
+:deep(.confirm-dialog .el-dialog__header) { display: none !important; }
+:deep(.confirm-dialog .el-dialog__body)   { padding: 32px 28px 20px !important; }
+:deep(.confirm-dialog .el-dialog__footer) { padding: 0 28px 28px !important; }
+
+.dc-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.dc-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+/* 주황색 경고 테마 */
+.dc-icon-wrap.warning { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+.dc-big-icon { font-size: 26px; }
+
+.dc-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--el-text-color-primary);
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+.dc-desc {
+  font-size: 13.5px;
+  color: var(--el-text-color-secondary);
+  margin: 0;
+  line-height: 1.6;
+}
+.dc-desc strong { color: var(--el-text-color-primary); font-weight: 700; }
+
+.dc-footer { display: flex; gap: 10px; }
+.dc-cancel-btn, .dc-confirm-btn {
+  flex: 1; height: 42px; border-radius: 10px; font-size: 14px; font-weight: 600;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; border: 1px solid; transition: all 0.2s;
+}
+
+.dc-cancel-btn {
+  background: var(--el-fill-color-light); border-color: var(--el-border-color-lighter);
+  color: var(--el-text-color-regular);
+}
+.dc-cancel-btn:hover { background: var(--el-fill-color); color: var(--el-text-color-primary); }
+
+.dc-confirm-btn.warning {
+  background: #f59e0b; border-color: #f59e0b; color: #fff;
+}
+.dc-confirm-btn.warning:hover { background: #d97706; border-color: #d97706; }
+
+.dc-cancel-btn:disabled, .dc-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

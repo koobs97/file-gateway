@@ -48,6 +48,12 @@ const router = createRouter({
       component: AdminView,
       meta: { title: '관리자 대시보드', roles: ['ROLE_ADMIN'] },
     },
+    {
+      /** CDR API 외부 연동 데모 — X-API-Key 인증 체험 (인증 불필요) */
+      path: '/demo',
+      component: () => import('../views/ApiDemoView.vue'),
+      meta: { public: true, title: 'API 연동 데모' },
+    },
   ],
 })
 

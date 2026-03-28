@@ -36,8 +36,9 @@ out/
 ### VS Code ###
 .vscode/
 
-# env (.env.example 은 git 포함)
+# env (.env.example / .env.prod.example 은 git 포함, 실제 값은 제외)
 .env
+docker/.env.prod
 
 # uploads
 uploads/
