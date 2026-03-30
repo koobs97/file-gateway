@@ -42,8 +42,8 @@ docker network create file-gateway-net 2>/dev/null \
     && info "  네트워크 생성: file-gateway-net" \
     || info "  네트워크 이미 존재: file-gateway-net"
 
-# 2. postgres: 이미 존재하면 start + 네트워크 연결, 없으면 compose로 신규 생성
-if docker ps -a --format '{{.Names}}' | grep -q "^file-gateway-postgres$"; then
+# 2. postgres: docker inspect로 존재 여부 확인 (ps 출력 형식 문제 회피)
+if docker inspect "file-gateway-postgres" > /dev/null 2>&1; then
     docker start file-gateway-postgres 2>/dev/null || true
     docker network connect file-gateway-net file-gateway-postgres 2>/dev/null || true
     info "  postgres: 기존 컨테이너 사용"
@@ -52,8 +52,8 @@ else
     info "  postgres: 신규 생성"
 fi
 
-# 3. nginx: 이미 존재하면 start, 없으면 compose로 신규 생성
-if docker ps -a --format '{{.Names}}' | grep -q "^file-gateway-nginx$"; then
+# 3. nginx: docker inspect로 존재 여부 확인
+if docker inspect "file-gateway-nginx" > /dev/null 2>&1; then
     docker start file-gateway-nginx 2>/dev/null || true
     docker network connect file-gateway-net file-gateway-nginx 2>/dev/null || true
     info "  nginx: 기존 컨테이너 사용"
