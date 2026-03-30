@@ -28,14 +28,14 @@ info "인프라 상태 확인 중..."
 
 docker network create file-gateway-net 2>/dev/null || true
 
-if docker ps -a --format '{{.Names}}' | grep -q "^file-gateway-postgres$"; then
+if docker inspect "file-gateway-postgres" > /dev/null 2>&1; then
     docker start file-gateway-postgres 2>/dev/null || true
     docker network connect file-gateway-net file-gateway-postgres 2>/dev/null || true
 else
     docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" up -d postgres
 fi
 
-if docker ps -a --format '{{.Names}}' | grep -q "^file-gateway-nginx$"; then
+if docker inspect "file-gateway-nginx" > /dev/null 2>&1; then
     docker start file-gateway-nginx 2>/dev/null || true
     docker network connect file-gateway-net file-gateway-nginx 2>/dev/null || true
 else
