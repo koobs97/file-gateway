@@ -117,7 +117,11 @@ fi
 if docker inspect "file-gateway-nginx" > /dev/null 2>&1; then
     _is_running "file-gateway-nginx" || docker start "file-gateway-nginx" 2>/dev/null || true
     docker network connect file-gateway-net "file-gateway-nginx" 2>/dev/null || true
-    info "  nginx: 기존 컨테이너 재사용"
+    # 기존 컨테이너도 conf 파일 항상 최신화
+    # (볼륨 마운트 방식의 이전 버전 conf가 남아있을 수 있음, reload는 _update_upstream에서 처리)
+    docker cp "$DOCKER_DIR/nginx/nginx.conf" file-gateway-nginx:/etc/nginx/nginx.conf 2>/dev/null || true
+    docker cp "$DOCKER_DIR/nginx/conf.d/app.conf" file-gateway-nginx:/etc/nginx/conf.d/app.conf 2>/dev/null || true
+    info "  nginx: 기존 컨테이너 재사용 (conf 갱신)"
 else
     info "  nginx: 신규 생성 (docker run + docker cp)"
     docker run -d \
