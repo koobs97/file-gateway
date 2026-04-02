@@ -61,12 +61,12 @@ _update_upstream() {
     local TAG="${2:-}"
     local TMPFILE
     TMPFILE=$(mktemp)
+    # \$ 이스케이프: heredoc 안의 nginx 변수명($backend_host 등)이 shell에 의해 치환되지 않도록
     cat > "$TMPFILE" << EOF
-# Blue-Green 업스트림 (deploy.sh에 의해 자동 갱신됨)
+# Blue-Green upstream 변수 (deploy.sh에 의해 자동 갱신됨)
 # 현재 활성: $SLOT${TAG:+ (이미지 태그: $TAG)}
-upstream backend {
-    server file-gateway-${SLOT}:8080;
-}
+set \$backend_host  "file-gateway-${SLOT}";
+set \$frontend_host "file-gateway-frontend";
 EOF
     docker cp "$TMPFILE" "file-gateway-nginx:${NGINX_UPSTREAM_CONF}"
     rm -f "$TMPFILE"
@@ -77,7 +77,7 @@ EOF
 # ── 헬퍼: nginx 컨테이너 내부 upstream.conf에서 활성 슬롯 읽기 ─────────
 _get_active_slot() {
     if docker exec file-gateway-nginx \
-        cat "$NGINX_UPSTREAM_CONF" 2>/dev/null | grep -q "file-gateway-blue"; then
+        cat "$NGINX_UPSTREAM_CONF" 2>/dev/null | grep -q '"file-gateway-blue"'; then
         echo "blue"
     else
         echo "green"

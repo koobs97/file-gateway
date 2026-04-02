@@ -41,11 +41,10 @@ _update_upstream() {
     local TMPFILE
     TMPFILE=$(mktemp)
     cat > "$TMPFILE" << EOF
-# Blue-Green 업스트림 (rollback.sh에 의해 롤백됨)
+# Blue-Green upstream 변수 (rollback.sh에 의해 롤백됨)
 # 현재 활성: $SLOT
-upstream backend {
-    server file-gateway-${SLOT}:8080;
-}
+set \$backend_host  "file-gateway-${SLOT}";
+set \$frontend_host "file-gateway-frontend";
 EOF
     docker cp "$TMPFILE" "file-gateway-nginx:${NGINX_UPSTREAM_CONF}"
     rm -f "$TMPFILE"
@@ -98,7 +97,7 @@ sleep 2
 
 # ── 현재 활성 슬롯 판단 (nginx 컨테이너 내부 upstream.conf 기준) ──────
 if docker exec file-gateway-nginx \
-    cat "$NGINX_UPSTREAM_CONF" 2>/dev/null | grep -q "file-gateway-blue"; then
+    cat "$NGINX_UPSTREAM_CONF" 2>/dev/null | grep -q '"file-gateway-blue"'; then
     ACTIVE="blue";  FALLBACK="green"; FALLBACK_PORT=8082
 else
     ACTIVE="green"; FALLBACK="blue";  FALLBACK_PORT=8081
