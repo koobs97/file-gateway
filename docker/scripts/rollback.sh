@@ -54,7 +54,8 @@ _ensure_container() {
         docker network connect file-gateway-net "$NAME" 2>/dev/null || true
         info "  $NAME: 기존 컨테이너 재사용 (상태: $STATUS)"
     else
-        docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" up -d "$COMPOSE_SVC"
+        # --no-deps: depends_on으로 인한 다른 컨테이너 자동 기동 방지 (이름 충돌 방지)
+        docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" up -d --no-deps "$COMPOSE_SVC"
         info "  $NAME: 신규 생성"
     fi
 }
