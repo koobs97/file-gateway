@@ -43,8 +43,12 @@ _update_upstream() {
     cat > "$TMPFILE" << EOF
 # Blue-Green upstream 변수 (rollback.sh에 의해 롤백됨)
 # 현재 활성: $SLOT
-set \$backend_host  "file-gateway-${SLOT}";
-set \$frontend_host "file-gateway-frontend";
+map "" \$backend_host {
+    default "file-gateway-${SLOT}";
+}
+map "" \$frontend_host {
+    default "file-gateway-frontend";
+}
 EOF
     docker cp "$TMPFILE" "file-gateway-nginx:${NGINX_UPSTREAM_CONF}"
     rm -f "$TMPFILE"

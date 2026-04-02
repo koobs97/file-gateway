@@ -62,11 +62,16 @@ _update_upstream() {
     local TMPFILE
     TMPFILE=$(mktemp)
     # \$ 이스케이프: heredoc 안의 nginx 변수명($backend_host 등)이 shell에 의해 치환되지 않도록
+    # map 지시어: http 블록 레벨에서 사용 가능 (set은 server/location 전용이라 conf.d glob include 시 에러)
     cat > "$TMPFILE" << EOF
 # Blue-Green upstream 변수 (deploy.sh에 의해 자동 갱신됨)
 # 현재 활성: $SLOT${TAG:+ (이미지 태그: $TAG)}
-set \$backend_host  "file-gateway-${SLOT}";
-set \$frontend_host "file-gateway-frontend";
+map "" \$backend_host {
+    default "file-gateway-${SLOT}";
+}
+map "" \$frontend_host {
+    default "file-gateway-frontend";
+}
 EOF
     docker cp "$TMPFILE" "file-gateway-nginx:${NGINX_UPSTREAM_CONF}"
     rm -f "$TMPFILE"
