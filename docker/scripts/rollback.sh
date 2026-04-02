@@ -2,11 +2,9 @@
 # =====================================================================
 # 롤백 스크립트
 #
-# 롤백 대상 판단 (컨테이너 실행 상태 기반):
-#   - upstream.conf 의 현재 활성 슬롯의 반대편 슬롯으로 전환
-#   - 반대편 슬롯이 존재하지 않으면 docker compose로 기동 후 전환
-#
-# 인프라 충돌 처리: deploy.sh 와 동일 (로컬 개발용 컨테이너 재사용)
+# 롤백 대상 판단: nginx upstream.conf(컨테이너 내부) 기준으로 현재 활성 슬롯 반대편으로 전환
+# 인프라 충돌 처리: deploy.sh와 동일 (로컬 개발용 컨테이너 재사용)
+# upstream.conf 업데이트: docker cp 방식 (Jenkins named volume 경로 문제 회피)
 # =====================================================================
 set -euo pipefail
 
@@ -15,7 +13,7 @@ DOCKER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_INFRA="$DOCKER_DIR/docker-compose.infra.yml"
 COMPOSE_APP="$DOCKER_DIR/docker-compose.app.yml"
 ENV_FILE="$DOCKER_DIR/.env.prod"
-UPSTREAM_CONF="$DOCKER_DIR/nginx/conf.d/upstream.conf"
+NGINX_UPSTREAM_CONF="/etc/nginx/conf.d/upstream.conf"
 
 HEALTH_HOST="${HEALTH_HOST:-host.docker.internal}"
 
@@ -31,7 +29,31 @@ fi
 
 set -a; source "$ENV_FILE"; set +a
 
-# ── 인프라 자동 기동 (deploy.sh와 동일 로직) ──────────────────────────
+# ── 헬퍼 ──────────────────────────────────────────────────────────────
+_is_running() {
+    local STATUS
+    STATUS=$(docker inspect --format='{{.State.Status}}' "$1" 2>/dev/null || echo "")
+    [[ "$STATUS" == "running" ]]
+}
+
+_update_upstream() {
+    local SLOT="$1"
+    local TMPFILE
+    TMPFILE=$(mktemp)
+    cat > "$TMPFILE" << EOF
+# Blue-Green 업스트림 (rollback.sh에 의해 롤백됨)
+# 현재 활성: $SLOT
+upstream backend {
+    server file-gateway-${SLOT}:8080;
+}
+EOF
+    docker cp "$TMPFILE" "file-gateway-nginx:${NGINX_UPSTREAM_CONF}"
+    rm -f "$TMPFILE"
+    docker exec file-gateway-nginx nginx -s reload
+    info "Nginx upstream 전환 완료 → [$SLOT]"
+}
+
+# ── 인프라 자동 기동 ───────────────────────────────────────────────────
 info "인프라 상태 확인 중..."
 
 if docker network inspect "file-gateway-net" > /dev/null 2>&1; then
@@ -41,31 +63,42 @@ else
     info "  네트워크 생성: file-gateway-net"
 fi
 
-_ensure_container() {
-    local NAME="$1"
-    local COMPOSE_SVC="$2"
+# postgres 재사용
+if docker inspect "file-gateway-postgres" > /dev/null 2>&1; then
+    _is_running "file-gateway-postgres" || docker start "file-gateway-postgres" 2>/dev/null || true
+    docker network connect file-gateway-net "file-gateway-postgres" 2>/dev/null || true
+    info "  postgres: 기존 컨테이너 재사용"
+else
+    docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" up -d --no-deps postgres
+    info "  postgres: 신규 생성"
+fi
 
-    if docker inspect "$NAME" > /dev/null 2>&1; then
-        local STATUS
-        STATUS=$(docker inspect --format='{{.State.Status}}' "$NAME" 2>/dev/null || echo "")
-        if [[ "$STATUS" != "running" ]]; then
-            docker start "$NAME" 2>/dev/null || true
-        fi
-        docker network connect file-gateway-net "$NAME" 2>/dev/null || true
-        info "  $NAME: 기존 컨테이너 재사용 (상태: $STATUS)"
-    else
-        # --no-deps: depends_on으로 인한 다른 컨테이너 자동 기동 방지 (이름 충돌 방지)
-        docker compose -f "$COMPOSE_INFRA" --env-file "$ENV_FILE" up -d --no-deps "$COMPOSE_SVC"
-        info "  $NAME: 신규 생성"
-    fi
-}
+# nginx 재사용 (없으면 신규 생성)
+if docker inspect "file-gateway-nginx" > /dev/null 2>&1; then
+    _is_running "file-gateway-nginx" || docker start "file-gateway-nginx" 2>/dev/null || true
+    docker network connect file-gateway-net "file-gateway-nginx" 2>/dev/null || true
+    info "  nginx: 기존 컨테이너 재사용"
+else
+    info "  nginx: 신규 생성 (docker run + docker cp)"
+    docker run -d \
+        --name file-gateway-nginx \
+        --network file-gateway-net \
+        -p 80:80 \
+        --restart unless-stopped \
+        nginx:alpine
+    sleep 2
+    docker cp "$DOCKER_DIR/nginx/nginx.conf" file-gateway-nginx:/etc/nginx/nginx.conf
+    docker cp "$DOCKER_DIR/nginx/conf.d/app.conf" file-gateway-nginx:/etc/nginx/conf.d/app.conf
+    docker cp "$DOCKER_DIR/nginx/conf.d/upstream.conf" file-gateway-nginx:/etc/nginx/conf.d/upstream.conf
+    docker exec file-gateway-nginx nginx -s reload
+    info "  nginx: 신규 생성 완료"
+fi
 
-_ensure_container "file-gateway-postgres" "postgres"
-_ensure_container "file-gateway-nginx" "nginx"
 sleep 2
 
-# ── 현재 활성 슬롯 판단 (upstream.conf 기반) ───────────────────────────
-if grep -q "file-gateway-blue" "$UPSTREAM_CONF" 2>/dev/null; then
+# ── 현재 활성 슬롯 판단 (nginx 컨테이너 내부 upstream.conf 기준) ──────
+if docker exec file-gateway-nginx \
+    cat "$NGINX_UPSTREAM_CONF" 2>/dev/null | grep -q "file-gateway-blue"; then
     ACTIVE="blue";  FALLBACK="green"; FALLBACK_PORT=8082
 else
     ACTIVE="green"; FALLBACK="blue";  FALLBACK_PORT=8081
@@ -73,9 +106,8 @@ fi
 info "현재 활성: $ACTIVE  →  롤백 대상: $FALLBACK (포트 $FALLBACK_PORT)"
 
 # ── 폴백 슬롯 기동 ─────────────────────────────────────────────────────
-FALLBACK_STATUS=$(docker inspect --format='{{.State.Status}}' "file-gateway-$FALLBACK" 2>/dev/null || echo "")
-if [[ "$FALLBACK_STATUS" == "running" ]]; then
-    warn "폴백 슬롯 [$FALLBACK] 이 이미 실행 중 → --force-recreate 없이 재사용"
+if _is_running "file-gateway-$FALLBACK"; then
+    warn "폴백 슬롯 [$FALLBACK] 이 이미 실행 중 → 재사용"
 else
     warn "폴백 슬롯 [$FALLBACK] 기동 중..."
     docker compose -f "$COMPOSE_APP" --env-file "$ENV_FILE" \
@@ -98,26 +130,11 @@ for i in $(seq 1 20); do
     sleep 3
 done
 
-# ── Nginx upstream 전환 ────────────────────────────────────────────────
-cat > "$UPSTREAM_CONF" <<EOF
-# Blue-Green 업스트림 (rollback.sh에 의해 롤백됨)
-# 현재 활성: $FALLBACK
-upstream backend {
-    server file-gateway-${FALLBACK}:8080;
-}
-EOF
-
-if docker inspect "file-gateway-nginx" > /dev/null 2>&1; then
-    NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' "file-gateway-nginx" 2>/dev/null || echo "")
-    if [[ "$NGINX_STATUS" == "running" ]]; then
-        docker exec file-gateway-nginx nginx -s reload
-        info "Nginx upstream 전환 완료: $ACTIVE → $FALLBACK"
-    fi
-fi
+# ── Nginx upstream 전환 (docker cp 방식) ────────────────────────────────
+_update_upstream "$FALLBACK"
 
 # ── 장애 슬롯 중지 ────────────────────────────────────────────────────
-ACTIVE_STATUS=$(docker inspect --format='{{.State.Status}}' "file-gateway-$ACTIVE" 2>/dev/null || echo "")
-if [[ "$ACTIVE_STATUS" == "running" ]]; then
+if _is_running "file-gateway-$ACTIVE"; then
     info "장애 슬롯 [$ACTIVE] 중지 중..."
     docker compose -f "$COMPOSE_APP" --env-file "$ENV_FILE" stop "file-gateway-$ACTIVE" || true
 fi
